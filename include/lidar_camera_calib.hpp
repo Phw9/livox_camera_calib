@@ -31,9 +31,12 @@
 #include <time.h>
 #include <unordered_map>
 
+#define SHOWRESIDUAL true
+#define ROUGHCALIBITER 50
 #define calib
 #define online
-class Calibration {
+class Calibration
+{
 public:
   ros::NodeHandle nh_;
   ros::Publisher rgb_cloud_pub_ =
@@ -155,6 +158,9 @@ public:
   // PCL에서 plane으로 넘겨주는애
   pcl::PointCloud<pcl::PointXYZI>::Ptr plane_line_cloud_;
   std::vector<int> plane_line_number_;
+  // Plane lists 저장
+  std::vector<Plane> mplane_list; // phw 0304
+  int global_plane_list_num = 0;
   // RGB 이미지 에지 포인트의 2D 포인트 클라우드 저장
   pcl::PointCloud<pcl::PointXYZ>::Ptr rgb_egde_cloud_;
   // LiDAR Depth/Intensity 이미지 에지 포인트의 2D 포인트 클라우드 저장
@@ -228,7 +234,7 @@ Calibration::Calibration(const std::string &image_file,
   std::unordered_map<VOXEL_LOC, Voxel *> voxel_map;
   // 복셀 만들고 down sampling까지 해서 복셀안에 포인트까지 만들기
   initVoxel(raw_lidar_cloud_, voxel_size_, voxel_map);
-  // 평면 먼저 구해서 라인 구함 플레인을 ㄱ지고
+  // 복셀안에 평면 먼저 구해서 라인 구함 plane_line_cloud에 구한 라인포인트들 들어감(근사치)
   LiDAREdgeExtraction(voxel_map, ransac_dis_threshold_, plane_size_threshold_,
                       plane_line_cloud_);
 };
@@ -450,11 +456,14 @@ void Calibration::projection(
       Eigen::AngleAxisd(extrinsic_params[0], Eigen::Vector3d::UnitZ()) *
       Eigen::AngleAxisd(extrinsic_params[1], Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(extrinsic_params[2], Eigen::Vector3d::UnitX());
-  for (size_t i = 0; i < lidar_cloud->size(); i++) {
+  
+  for (size_t i = 0; i < lidar_cloud->size(); i++)
+  {
     pcl::PointXYZI point_3d = lidar_cloud->points[i];
     float depth =
         sqrt(pow(point_3d.x, 2) + pow(point_3d.y, 2) + pow(point_3d.z, 2));
-    if (depth > min_depth_ && depth < max_depth_) {
+    if (depth > min_depth_ && depth < max_depth_)
+    {
       pts_3d.emplace_back(cv::Point3f(point_3d.x, point_3d.y, point_3d.z));
       intensity_list.emplace_back(lidar_cloud->points[i].intensity);
     }
@@ -471,17 +480,22 @@ void Calibration::projection(
   cv::Mat t_vec = (cv::Mat_<double>(3, 1) << extrinsic_params[3],
                    extrinsic_params[4], extrinsic_params[5]);
   // project 3d-points into image view
+  // 카메라의 intrinsic을 사용하고 absolute pose는 그냥 그때그때마다 다름
   std::vector<cv::Point2f> pts_2d;
   cv::projectPoints(pts_3d, r_vec, t_vec, camera_matrix, distortion_coeff,
                     pts_2d);
   cv::Mat image_project = cv::Mat::zeros(height_, width_, CV_16UC1);
   cv::Mat rgb_image_project = cv::Mat::zeros(height_, width_, CV_8UC3);
-  for (size_t i = 0; i < pts_2d.size(); ++i) {
+  for (size_t i = 0; i < pts_2d.size(); ++i)
+  {
     cv::Point2f point_2d = pts_2d[i];
     if (point_2d.x <= 0 || point_2d.x >= width_ || point_2d.y <= 0 ||
-        point_2d.y >= height_) {
+        point_2d.y >= height_)
+    {
       continue;
-    } else {
+    }
+    else
+    {
       // test depth and intensity both
       if (projection_type == DEPTH)
       {
@@ -491,13 +505,17 @@ void Calibration::projection(
         float depth_weight = 1;
         float grey = depth_weight * depth / max_depth_ * 65535 +
                      (1 - depth_weight) * intensity / 150 * 65535;
-        if (image_project.at<ushort>(point_2d.y, point_2d.x) == 0) {
+        
+        if (image_project.at<ushort>(point_2d.y, point_2d.x) == 0)
+        {
           image_project.at<ushort>(point_2d.y, point_2d.x) = grey;
           rgb_image_project.at<cv::Vec3b>(point_2d.y, point_2d.x)[0] =
               depth / max_depth_ * 255;
           rgb_image_project.at<cv::Vec3b>(point_2d.y, point_2d.x)[1] =
               intensity / 150 * 255;
-        } else if (depth < image_project.at<ushort>(point_2d.y, point_2d.x)) {
+        }
+        else if (depth < image_project.at<ushort>(point_2d.y, point_2d.x))
+        {
           image_project.at<ushort>(point_2d.y, point_2d.x) = grey;
           rgb_image_project.at<cv::Vec3b>(point_2d.y, point_2d.x)[0] =
               depth / max_depth_ * 255;
@@ -570,11 +588,12 @@ cv::Mat Calibration::fillImg(const cv::Mat &input_img,
   }
   return fill_img;
 }
-
+// residual을 visualize 할 때 사용할 함수(threshold, cam_edge, lidar_edge)
 cv::Mat Calibration::getConnectImg(
     const int dis_threshold,
     const pcl::PointCloud<pcl::PointXYZ>::Ptr &rgb_edge_cloud,
-    const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud) {
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud)
+{
   cv::Mat connect_img = cv::Mat::zeros(height_, width_, CV_8UC3);
   pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(
       new pcl::search::KdTree<pcl::PointXYZ>());
@@ -584,33 +603,40 @@ cv::Mat Calibration::getConnectImg(
       pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
   kdtree->setInputCloud(rgb_edge_cloud);
   tree_cloud = rgb_edge_cloud;
-  for (size_t i = 0; i < depth_edge_cloud->points.size(); i++) {
+  for (size_t i = 0; i < depth_edge_cloud->points.size(); i++)
+  {
     cv::Point2d p2(depth_edge_cloud->points[i].x,
                    -depth_edge_cloud->points[i].y);
-    if (checkFov(p2)) {
+    if (checkFov(p2))
+    {
       pcl::PointXYZ p = depth_edge_cloud->points[i];
       search_cloud->points.push_back(p);
     }
   }
 
   int line_count = 0;
-  // 指定近邻个数
+  // 이웃 수 지정
   int K = 1;
-  // 创建两个向量，分别存放近邻的索引值、近邻的中心距
+  // 이웃의 인덱스 값과 이웃의 중심 거리를 각각 저장할 두 개의 벡터를 만듭니다.
   std::vector<int> pointIdxNKNSearch(K);
   std::vector<float> pointNKNSquaredDistance(K);
-  for (size_t i = 0; i < search_cloud->points.size(); i++) {
+  for (size_t i = 0; i < search_cloud->points.size(); i++)
+  {
     pcl::PointXYZ searchPoint = search_cloud->points[i];
     if (kdtree->nearestKSearch(searchPoint, K, pointIdxNKNSearch,
-                               pointNKNSquaredDistance) > 0) {
-      for (int j = 0; j < K; j++) {
+                               pointNKNSquaredDistance) > 0)
+    {
+      for (int j = 0; j < K; j++)
+      {
         float distance = sqrt(
             pow(searchPoint.x - tree_cloud->points[pointIdxNKNSearch[j]].x, 2) +
             pow(searchPoint.y - tree_cloud->points[pointIdxNKNSearch[j]].y, 2));
-        if (distance < dis_threshold) {
+        if (distance < dis_threshold)
+        {
           cv::Scalar color = cv::Scalar(0, 255, 0);
           line_count++;
-          if ((line_count % 3) == 0) {
+          if ((line_count % 3) == 0)
+          {
             cv::line(connect_img,
                      cv::Point(search_cloud->points[i].x,
                                -search_cloud->points[i].y),
@@ -776,19 +802,20 @@ void Calibration::LiDAREdgeExtraction(
       while (cloud_filter->points.size() > 10) {
         pcl::PointCloud<pcl::PointXYZI> planner_cloud;
         pcl::ExtractIndices<pcl::PointXYZI> extract;
-        // PCL 넣고 segment 진행해서 평면의 방정식(노말벡터) 얻음
+        // PCL 넣고 segment 진행해서 평면의 방정식(노말벡터)들을 얻음
         seg.setInputCloud(cloud_filter);
         seg.setMaxIterations(500);
         seg.segment(*inliers, *coefficients);
         if (inliers->indices.size() == 0)
         {
+          // plane이 아예 없는것
           ROS_INFO_STREAM(
               "Could not estimate a planner model for the given dataset");
           break;
         }
+        // inlier들끼리 추출해서 planner_cloud에 넣어줌
         extract.setIndices(inliers);
         extract.setInputCloud(cloud_filter);
-        // 평면위에 있는 PCL들
         extract.filter(planner_cloud);
 
         // plane 색깔 입혀주고 센터 구해서 color_cloud에 넣음
@@ -818,6 +845,7 @@ void Calibration::LiDAREdgeExtraction(
           p_center.x = p_center.x / planner_cloud.size();
           p_center.y = p_center.y / planner_cloud.size();
           p_center.z = p_center.z / planner_cloud.size();
+          // single_plane에 
           Plane single_plane;
           single_plane.cloud = planner_cloud;
           single_plane.p_center = p_center;
@@ -825,7 +853,8 @@ void Calibration::LiDAREdgeExtraction(
               coefficients->values[1], coefficients->values[2];
           single_plane.index = plane_index;
           plane_list.push_back(single_plane);
-          plane_index++;
+          mplane_list.push_back(single_plane); // phw 0304
+          plane_index++; global_plane_list_num++;
         }
         extract.setNegative(true);
         pcl::PointCloud<pcl::PointXYZI> cloud_f;
@@ -841,12 +870,14 @@ void Calibration::LiDAREdgeExtraction(
       }
 
       std::vector<pcl::PointCloud<pcl::PointXYZI>> line_cloud_list;
+      // line 추출함
       calcLine(plane_list, voxel_size_, iter->second->voxel_origin,
                line_cloud_list);
       // ouster 5,normal 3
+      // line_cloud_list에 있는 line을 plane_line_cloud에 집어넣고
+      // plane_line_number_에 line_number_를 넣어줌
       if (line_cloud_list.size() > 0 && line_cloud_list.size() <= 8)
       {
-
         for (size_t cloud_index = 0; cloud_index < line_cloud_list.size();
              cloud_index++)
         {
@@ -871,13 +902,18 @@ void Calibration::LiDAREdgeExtraction(
 void Calibration::calcLine(
     const std::vector<Plane> &plane_list, const double voxel_size,
     const Eigen::Vector3d origin,
-    std::vector<pcl::PointCloud<pcl::PointXYZI>> &line_cloud_list) {
-  if (plane_list.size() >= 2 && plane_list.size() <= plane_max_size_) {
+    std::vector<pcl::PointCloud<pcl::PointXYZI>> &line_cloud_list)
+{
+  // 2<= 평면 <= 8 일때만함
+  if (plane_list.size() >= 2 && plane_list.size() <= plane_max_size_)
+  {
     pcl::PointCloud<pcl::PointXYZI> temp_line_cloud;
     for (size_t plane_index1 = 0; plane_index1 < plane_list.size() - 1;
-         plane_index1++) {
+         plane_index1++)
+    {
       for (size_t plane_index2 = plane_index1 + 1;
-           plane_index2 < plane_list.size(); plane_index2++) {
+           plane_index2 < plane_list.size(); plane_index2++)
+      {
         float a1 = plane_list[plane_index1].normal[0];
         float b1 = plane_list[plane_index1].normal[1];
         float c1 = plane_list[plane_index1].normal[2];
@@ -893,10 +929,12 @@ void Calibration::calcLine(
         float theta = a1 * a2 + b1 * b2 + c1 * c2;
         //
         float point_dis_threshold = 0.00;
-        if (theta > theta_max_ && theta < theta_min_) {
+        if (theta > theta_max_ && theta < theta_min_)
+        {
           // for (int i = 0; i < 6; i++) {
           if (plane_list[plane_index1].cloud.size() > 0 &&
-              plane_list[plane_index2].cloud.size() > 0) {
+              plane_list[plane_index2].cloud.size() > 0)
+        {
             float matrix[4][5];
             matrix[1][1] = a1;
             matrix[1][2] = b1;
@@ -906,20 +944,27 @@ void Calibration::calcLine(
             matrix[2][2] = b2;
             matrix[2][3] = c2;
             matrix[2][4] = a2 * x2 + b2 * y2 + c2 * z2;
-            // six types
+            
+            /*
+            point에 두 평면과 각 복셀6면과 겹치는 points를 크래머공식으로 구하는것
+            point가 복셀 안에 있으면 points에 추가
+            복셀 위에 평면이 있어야 continuity니까? 그런건가
+            */
             std::vector<Eigen::Vector3d> points;
             Eigen::Vector3d point;
             matrix[3][1] = 1;
             matrix[3][2] = 0;
             matrix[3][3] = 0;
-            matrix[3][4] = origin[0];
+            matrix[3][4] = origin[0]; // voxel indexing = position.x * voxel_size
+
             calc<float>(matrix, point);
             if (point[0] >= origin[0] - point_dis_threshold &&
                 point[0] <= origin[0] + voxel_size + point_dis_threshold &&
                 point[1] >= origin[1] - point_dis_threshold &&
                 point[1] <= origin[1] + voxel_size + point_dis_threshold &&
                 point[2] >= origin[2] - point_dis_threshold &&
-                point[2] <= origin[2] + voxel_size + point_dis_threshold) {
+                point[2] <= origin[2] + voxel_size + point_dis_threshold)
+            {
               points.push_back(point);
             }
             matrix[3][1] = 0;
@@ -986,17 +1031,20 @@ void Calibration::calcLine(
                 point[2] >= origin[2] - point_dis_threshold &&
                 point[2] <= origin[2] + voxel_size + point_dis_threshold) {
               points.push_back(point);
-            }
+            } // calc end
+
+
             // std::cout << "points size:" << points.size() << std::endl;
+            // points.size가 2면 두 평면의 교선중에 라인이 복셀안에 있다는 뜻
             if (points.size() == 2) {
               pcl::PointCloud<pcl::PointXYZI> line_cloud;
               pcl::PointXYZ p1(points[0][0], points[0][1], points[0][2]);
               pcl::PointXYZ p2(points[1][0], points[1][1], points[1][2]);
               float length = sqrt(pow(p1.x - p2.x, 2) + pow(p1.y - p2.y, 2) +
                                   pow(p1.z - p2.z, 2));
-              // 指定近邻个数
+              // 이웃 수 지정
               int K = 1;
-              // 创建两个向量，分别存放近邻的索引值、近邻的中心距
+              // 이웃의 인덱스 값과 이웃의 중심 거리를 각각 저장할 두 개의 벡터를 만듭니다.
               std::vector<int> pointIdxNKNSearch1(K);
               std::vector<float> pointNKNSquaredDistance1(K);
               std::vector<int> pointIdxNKNSearch2(K);
@@ -1006,15 +1054,24 @@ void Calibration::calcLine(
               pcl::search::KdTree<pcl::PointXYZI>::Ptr kdtree2(
                   new pcl::search::KdTree<pcl::PointXYZI>());
               kdtree1->setInputCloud(
-                  plane_list[plane_index1].cloud.makeShared());
+                  plane_list[plane_index1].cloud.makeShared()); // shared pointer
               kdtree2->setInputCloud(
                   plane_list[plane_index2].cloud.makeShared());
+              
+              /*
+              line의 point[0] 첫 지점부터 point[1] 마지막 지점까지 0.005step으로 천천히 가면서
+              line 위의 포인트를 계산(실제값X)하고 실제 plane1,2위에 있는 가장 가까운 포인트 두개와
+              distance를 구해서 각 min,max_line_dis_threshold를 넘지 않으면 line위에 있다고 계산한
+              포인트를 line_cloud에 넣어줌.
+              line_cloud가 10개 이상이면 line_cloud_list에 넣어줌
+              */
               for (float inc = 0; inc <= length; inc += 0.005) {
                 pcl::PointXYZI p;
                 p.x = p1.x + (p2.x - p1.x) * inc / length;
                 p.y = p1.y + (p2.y - p1.y) * inc / length;
                 p.z = p1.z + (p2.z - p1.z) * inc / length;
                 p.intensity = 100;
+                // 제일 가까운점 하나 찾는것
                 if ((kdtree1->nearestKSearch(p, K, pointIdxNKNSearch1,
                                              pointNKNSquaredDistance1) > 0) &&
                     (kdtree2->nearestKSearch(p, K, pointIdxNKNSearch2,
@@ -1057,6 +1114,7 @@ void Calibration::calcLine(
                   }
                 }
               }
+              //
               if (line_cloud.size() > 10) {
                 line_cloud_list.push_back(line_cloud);
               }
@@ -1067,18 +1125,25 @@ void Calibration::calcLine(
     }
   }
 }
-
+// test_param, match_dis, false, cam_edge, PCL_edge, pnp_list
 void Calibration::buildVPnp(
     const Vector6d &extrinsic_params, const int dis_threshold,
     const bool show_residual,
     const pcl::PointCloud<pcl::PointXYZ>::Ptr &cam_edge_cloud_2d,
     const pcl::PointCloud<pcl::PointXYZI>::Ptr &lidar_line_cloud_3d,
-    std::vector<VPnPData> &pnp_list) {
+    std::vector<VPnPData> &pnp_list)
+{
   pnp_list.clear();
   std::vector<std::vector<std::vector<pcl::PointXYZI>>> img_pts_container;
-  for (int y = 0; y < height_; y++) {
+  /*
+  →→→
+  →→→ 로 PointXYZI가 들어감
+  */
+  for (int y = 0; y < height_; y++)
+  {
     std::vector<std::vector<pcl::PointXYZI>> row_pts_container;
-    for (int x = 0; x < width_; x++) {
+    for (int x = 0; x < width_; x++)
+    {
       std::vector<pcl::PointXYZI> col_pts_container;
       row_pts_container.push_back(col_pts_container);
     }
@@ -1091,7 +1156,8 @@ void Calibration::buildVPnp(
       Eigen::AngleAxisd(extrinsic_params[1], Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(extrinsic_params[2], Eigen::Vector3d::UnitX());
 
-  for (size_t i = 0; i < lidar_line_cloud_3d->size(); i++) {
+  for (size_t i = 0; i < lidar_line_cloud_3d->size(); i++)
+  {
     pcl::PointXYZI point_3d = lidar_line_cloud_3d->points[i];
     pts_3d.emplace_back(cv::Point3d(point_3d.x, point_3d.y, point_3d.z));
   }
@@ -1114,12 +1180,15 @@ void Calibration::buildVPnp(
   // std::cout << "r_vec:" << r_vec << std::endl;
   // std::cout << "t_vec:" << t_vec << std::endl;
   // std::cout << "pts 3d size:" << pts_3d.size() << std::endl;
+  
+  // 3d edge를 pts_2d에 projection 시킴
   cv::projectPoints(pts_3d, r_vec, t_vec, camera_matrix, distortion_coeff,
                     pts_2d);
   pcl::PointCloud<pcl::PointXYZ>::Ptr line_edge_cloud_2d(
       new pcl::PointCloud<pcl::PointXYZ>);
   std::vector<int> line_edge_cloud_2d_number;
-  for (size_t i = 0; i < pts_2d.size(); i++) {
+  for (size_t i = 0; i < pts_2d.size(); i++)
+  {
     pcl::PointXYZ p;
     p.x = pts_2d[i].x;
     p.y = -pts_2d[i].y;
@@ -1129,17 +1198,24 @@ void Calibration::buildVPnp(
     pi_3d.y = pts_3d[i].y;
     pi_3d.z = pts_3d[i].z;
     pi_3d.intensity = 1;
-    if (p.x > 0 && p.x < width_ && pts_2d[i].y > 0 && pts_2d[i].y < height_) {
-      if (img_pts_container[pts_2d[i].y][pts_2d[i].x].size() == 0) {
+
+    if (p.x > 0 && p.x < width_ && pts_2d[i].y > 0 && pts_2d[i].y < height_)
+    {
+      //테두리 0에 걸쳐있는 경우
+      if (img_pts_container[pts_2d[i].y][pts_2d[i].x].size() == 0)
+      {
         line_edge_cloud_2d->points.push_back(p);
         line_edge_cloud_2d_number.push_back(plane_line_number_[i]);
         img_pts_container[pts_2d[i].y][pts_2d[i].x].push_back(pi_3d);
-      } else {
+      }
+      else
+      {
         img_pts_container[pts_2d[i].y][pts_2d[i].x].push_back(pi_3d);
       }
     }
   }
-  if (show_residual) {
+  if (show_residual)
+  {
     cv::Mat residual_img =
         getConnectImg(dis_threshold, cam_edge_cloud_2d, line_edge_cloud_2d);
     cv::imshow("residual", residual_img);
@@ -1160,9 +1236,9 @@ void Calibration::buildVPnp(
   tree_cloud = cam_edge_cloud_2d;
   tree_cloud_lidar = line_edge_cloud_2d;
   search_cloud = line_edge_cloud_2d;
-  // 指定近邻个数
+  // 이웃 수 지정
   int K = 5;
-  // 创建两个向量，分别存放近邻的索引值、近邻的中心距
+  // 이웃의 인덱스 값과 이웃의 중심 거리를 각각 저장할 두 개의 벡터를 만듭니다.
   std::vector<int> pointIdxNKNSearch(K);
   std::vector<float> pointNKNSquaredDistance(K);
   std::vector<int> pointIdxNKNSearchLidar(K);
@@ -1175,44 +1251,60 @@ void Calibration::buildVPnp(
   std::vector<Eigen::Vector2d> camera_direction_list;
   std::vector<Eigen::Vector2d> lidar_direction_list;
   std::vector<int> lidar_2d_number;
-  for (size_t i = 0; i < search_cloud->points.size(); i++) {
+  /*
+  lidar_edge의 points가지고 knn 서치를 해서 포인트를 찾고 각각 lidar랑 cam에서
+  1개이상 찾으면 distance를 구하고 threshold보다 안넘으면 p_l_2d랑 p_c_2d(포인트중에 
+  distance가 가장적은애[0])에 넣고 calcDirection에서 lidar와 cam에서 line의
+  direction을 각각 구해서 direction_list에 넣어줌
+  */
+  for (size_t i = 0; i < search_cloud->points.size(); i++)
+  {
     pcl::PointXYZ searchPoint = search_cloud->points[i];
     if ((kdtree->nearestKSearch(searchPoint, K, pointIdxNKNSearch,
                                 pointNKNSquaredDistance) > 0) &&
         (kdtree_lidar->nearestKSearch(searchPoint, K, pointIdxNKNSearchLidar,
-                                      pointNKNSquaredDistanceLidar) > 0)) {
+                                      pointNKNSquaredDistanceLidar) > 0))
+    {
       bool dis_check = true;
-      for (int j = 0; j < K; j++) {
+      for (int j = 0; j < K; j++)
+      {
         float distance = sqrt(
             pow(searchPoint.x - tree_cloud->points[pointIdxNKNSearch[j]].x, 2) +
             pow(searchPoint.y - tree_cloud->points[pointIdxNKNSearch[j]].y, 2));
-        if (distance > dis_threshold) {
+        if (distance > dis_threshold)
+        {
           dis_check = false;
         }
       }
-      if (dis_check) {
+      if (dis_check)
+      {
         cv::Point p_l_2d(search_cloud->points[i].x, -search_cloud->points[i].y);
         cv::Point p_c_2d(tree_cloud->points[pointIdxNKNSearch[0]].x,
                          -tree_cloud->points[pointIdxNKNSearch[0]].y);
         Eigen::Vector2d direction_cam(0, 0);
         std::vector<Eigen::Vector2d> points_cam;
-        for (size_t i = 0; i < pointIdxNKNSearch.size(); i++) {
+        for (size_t i = 0; i < pointIdxNKNSearch.size(); i++)
+        {
           Eigen::Vector2d p(tree_cloud->points[pointIdxNKNSearch[i]].x,
                             -tree_cloud->points[pointIdxNKNSearch[i]].y);
           points_cam.push_back(p);
         }
+        // cam 라인 방향벡터 계산
         calcDirection(points_cam, direction_cam);
         Eigen::Vector2d direction_lidar(0, 0);
         std::vector<Eigen::Vector2d> points_lidar;
-        for (size_t i = 0; i < pointIdxNKNSearch.size(); i++) {
+        for (size_t i = 0; i < pointIdxNKNSearch.size(); i++)
+        {
           Eigen::Vector2d p(
               tree_cloud_lidar->points[pointIdxNKNSearchLidar[i]].x,
               -tree_cloud_lidar->points[pointIdxNKNSearchLidar[i]].y);
           points_lidar.push_back(p);
         }
+        // lidar 라인 방향벡터 계산
         calcDirection(points_lidar, direction_lidar);
         // direction.normalize();
-        if (checkFov(p_l_2d)) {
+        if (checkFov(p_l_2d))
+        {
           lidar_2d_list.push_back(p_l_2d);
           img_2d_list.push_back(p_c_2d);
           camera_direction_list.push_back(direction_cam);
@@ -1222,18 +1314,27 @@ void Calibration::buildVPnp(
       }
     }
   }
-  for (size_t i = 0; i < lidar_2d_list.size(); i++) {
+  /*
+  pnp할 데이터 pnp_list에 넣어줌 x,y,z는 points의 평균이고,
+  u,v는 search한 lidar포인트와 가장 가까운 cam point를 넣어준거
+  direction을 cam과 lidar 각각 넣어주고 lidar_2d_nuber은 line_edge_cloud_2d_num임
+  */
+
+  for (size_t i = 0; i < lidar_2d_list.size(); i++)
+  {
     int y = lidar_2d_list[i].y;
     int x = lidar_2d_list[i].x;
     int pixel_points_size = img_pts_container[y][x].size();
-    if (pixel_points_size > 0) {
+    if (pixel_points_size > 0)
+    {
       VPnPData pnp;
       pnp.x = 0;
       pnp.y = 0;
       pnp.z = 0;
       pnp.u = img_2d_list[i].x;
       pnp.v = img_2d_list[i].y;
-      for (size_t j = 0; j < pixel_points_size; j++) {
+      for (size_t j = 0; j < pixel_points_size; j++)
+      {
         pnp.x += img_pts_container[y][x][j].x;
         pnp.y += img_pts_container[y][x][j].y;
         pnp.z += img_pts_container[y][x][j].z;
@@ -1245,23 +1346,29 @@ void Calibration::buildVPnp(
       pnp.direction_lidar = lidar_direction_list[i];
       pnp.number = lidar_2d_number[i];
       float theta = pnp.direction.dot(pnp.direction_lidar);
-      if (theta > direction_theta_min_ || theta < direction_theta_max_) {
+      if (theta > direction_theta_min_ || theta < direction_theta_max_)
+      {
         pnp_list.push_back(pnp);
       }
     }
   }
 }
-
+/*
+v(line direction 정보가 없는 pnpdata)
+*/
 void Calibration::buildPnp(
     const Vector6d &extrinsic_params, const int dis_threshold,
     const bool show_residual,
     const pcl::PointCloud<pcl::PointXYZ>::Ptr &cam_edge_cloud_2d,
     const pcl::PointCloud<pcl::PointXYZI>::Ptr &lidar_line_cloud_3d,
-    std::vector<PnPData> &pnp_list) {
+    std::vector<PnPData> &pnp_list)
+{
   std::vector<std::vector<std::vector<pcl::PointXYZI>>> img_pts_container;
-  for (int y = 0; y < height_; y++) {
+  for (int y = 0; y < height_; y++)
+  {
     std::vector<std::vector<pcl::PointXYZI>> row_pts_container;
-    for (int x = 0; x < width_; x++) {
+    for (int x = 0; x < width_; x++)
+    {
       std::vector<pcl::PointXYZI> col_pts_container;
       row_pts_container.push_back(col_pts_container);
     }
@@ -1273,7 +1380,8 @@ void Calibration::buildPnp(
       Eigen::AngleAxisd(extrinsic_params[0], Eigen::Vector3d::UnitZ()) *
       Eigen::AngleAxisd(extrinsic_params[1], Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(extrinsic_params[2], Eigen::Vector3d::UnitX());
-  for (size_t i = 0; i < lidar_line_cloud_3d->size(); i++) {
+  for (size_t i = 0; i < lidar_line_cloud_3d->size(); i++)
+  {
     pcl::PointXYZI point_3d = lidar_line_cloud_3d->points[i];
     pts_3d.emplace_back(cv::Point3f(point_3d.x, point_3d.y, point_3d.z));
   }
@@ -1294,7 +1402,8 @@ void Calibration::buildPnp(
                     pts_2d);
   pcl::PointCloud<pcl::PointXYZ>::Ptr line_edge_cloud_2d(
       new pcl::PointCloud<pcl::PointXYZ>);
-  for (size_t i = 0; i < pts_2d.size(); i++) {
+  for (size_t i = 0; i < pts_2d.size(); i++)
+  {
     pcl::PointXYZ p;
     p.x = pts_2d[i].x;
     p.y = -pts_2d[i].y;
@@ -1304,12 +1413,14 @@ void Calibration::buildPnp(
     pi_3d.y = pts_3d[i].y;
     pi_3d.z = pts_3d[i].z;
     pi_3d.intensity = 1;
-    if (p.x > 0 && p.x < width_ && pts_2d[i].y > 0 && pts_2d[i].y < height_) {
+    if (p.x > 0 && p.x < width_ && pts_2d[i].y > 0 && pts_2d[i].y < height_)
+    {
       line_edge_cloud_2d->points.push_back(p);
       img_pts_container[pts_2d[i].y][pts_2d[i].x].push_back(pi_3d);
     }
   }
-  if (show_residual) {
+  if (show_residual)
+  {
     cv::Mat residual_img =
         getConnectImg(dis_threshold, cam_edge_cloud_2d, line_edge_cloud_2d);
     cv::imshow("residual", residual_img);
@@ -1324,9 +1435,9 @@ void Calibration::buildPnp(
   kdtree->setInputCloud(cam_edge_cloud_2d);
   tree_cloud = cam_edge_cloud_2d;
   search_cloud = line_edge_cloud_2d;
-  // 指定近邻个数
+  // 이웃 수 지정
   int K = 1;
-  // 创建两个向量，分别存放近邻的索引值、近邻的中心距
+  // 이웃의 인덱스 값과 이웃의 중심 거리를 각각 저장할 두 개의 벡터를 만듭니다.
   std::vector<int> pointIdxNKNSearch(K);
   std::vector<float> pointNKNSquaredDistance(K);
   int match_count = 0;
@@ -1334,21 +1445,25 @@ void Calibration::buildPnp(
   int line_count = 0;
   std::vector<cv::Point2d> lidar_2d_list;
   std::vector<cv::Point2d> img_2d_list;
-  for (size_t i = 0; i < search_cloud->points.size(); i++) {
+  for (size_t i = 0; i < search_cloud->points.size(); i++)
+  {
     pcl::PointXYZ searchPoint = search_cloud->points[i];
     if (kdtree->nearestKSearch(searchPoint, K, pointIdxNKNSearch,
                                pointNKNSquaredDistance) > 0) {
-      for (int j = 0; j < K; j++) {
+      for (int j = 0; j < K; j++)
+      {
         float distance = sqrt(
             pow(searchPoint.x - tree_cloud->points[pointIdxNKNSearch[j]].x, 2) +
             pow(searchPoint.y - tree_cloud->points[pointIdxNKNSearch[j]].y, 2));
-        if (distance < dis_threshold) {
+        if (distance < dis_threshold)
+        {
 
           cv::Point p_l_2d(search_cloud->points[i].x,
                            -search_cloud->points[i].y);
           cv::Point p_c_2d(tree_cloud->points[pointIdxNKNSearch[j]].x,
                            -tree_cloud->points[pointIdxNKNSearch[j]].y);
-          if (checkFov(p_l_2d)) {
+          if (checkFov(p_l_2d))
+          {
             lidar_2d_list.push_back(p_l_2d);
             img_2d_list.push_back(p_c_2d);
           }
@@ -1357,18 +1472,21 @@ void Calibration::buildPnp(
     }
   }
   pnp_list.clear();
-  for (size_t i = 0; i < lidar_2d_list.size(); i++) {
+  for (size_t i = 0; i < lidar_2d_list.size(); i++)
+  {
     int y = lidar_2d_list[i].y;
     int x = lidar_2d_list[i].x;
     int pixel_points_size = img_pts_container[y][x].size();
-    if (pixel_points_size > 0) {
+    if (pixel_points_size > 0)
+    {
       PnPData pnp;
       pnp.x = 0;
       pnp.y = 0;
       pnp.z = 0;
       pnp.u = img_2d_list[i].x;
       pnp.v = img_2d_list[i].y;
-      for (size_t j = 0; j < pixel_points_size; j++) {
+      for (size_t j = 0; j < pixel_points_size; j++)
+      {
         pnp.x += img_pts_container[y][x][j].x;
         pnp.y += img_pts_container[y][x][j].y;
         pnp.z += img_pts_container[y][x][j].z;
@@ -1381,22 +1499,28 @@ void Calibration::buildPnp(
   }
 }
 
+
 void Calibration::loadImgAndPointcloud(
     const std::string path, pcl::PointCloud<pcl::PointXYZI>::Ptr &origin_cloud,
-    cv::Mat &rgb_img) {
+    cv::Mat &rgb_img)
+{
   origin_cloud =
       pcl::PointCloud<pcl::PointXYZI>::Ptr(new pcl::PointCloud<pcl::PointXYZI>);
   std::fstream file_;
   file_.open(path, ios::in);
-  if (!file_) {
+  if (!file_)
+  {
     cout << "File " << path << " does not exit" << endl;
     return;
   }
   ROS_INFO("Loading the rosbag %s", path.c_str());
   rosbag::Bag bag;
-  try {
+  try
+  {
     bag.open(path, rosbag::bagmode::Read);
-  } catch (rosbag::BagException e) {
+  }
+  catch (rosbag::BagException e)
+  {
     ROS_ERROR_STREAM("LOADING BAG FAILED: " << e.what());
     return;
   }
@@ -1406,12 +1530,15 @@ void Calibration::loadImgAndPointcloud(
   rosbag::View view(bag, rosbag::TopicQuery(lidar_topic));
 
   int cloudCount = 0;
-  for (const rosbag::MessageInstance &m : view) {
-    if (is_use_custom_msg_) {
+  for (const rosbag::MessageInstance &m : view)
+  {
+    if (is_use_custom_msg_)
+    {
       livox_ros_driver::CustomMsg livox_cloud_msg =
           *(m.instantiate<livox_ros_driver::CustomMsg>()); // message type
 
-      for (uint i = 0; i < livox_cloud_msg.point_num; ++i) {
+      for (uint i = 0; i < livox_cloud_msg.point_num; ++i)
+      {
         pcl::PointXYZI p;
         p.x = livox_cloud_msg.points[i].x;
         p.y = livox_cloud_msg.points[i].y;
@@ -1419,7 +1546,9 @@ void Calibration::loadImgAndPointcloud(
         p.intensity = livox_cloud_msg.points[i].reflectivity;
         origin_cloud->points.push_back(p);
       }
-    } else {
+    }
+    else
+    {
       sensor_msgs::PointCloud2 livox_cloud;
       livox_cloud =
           *(m.instantiate<sensor_msgs::PointCloud2>()); // message type
@@ -1427,7 +1556,8 @@ void Calibration::loadImgAndPointcloud(
       pcl::PCLPointCloud2 pcl_pc;
       pcl_conversions::toPCL(livox_cloud, pcl_pc);
       pcl::fromPCLPointCloud2(pcl_pc, cloud);
-      for (uint i = 0; i < cloud.size(); ++i) {
+      for (uint i = 0; i < cloud.size(); ++i)
+      {
         origin_cloud->points.push_back(cloud.points[i]);
       }
     }
@@ -1442,9 +1572,11 @@ void Calibration::loadImgAndPointcloud(
   img_topic.push_back(image_topic_name_);
   rosbag::View img_view(bag, rosbag::TopicQuery(img_topic));
   int cnt = 0;
-  for (const rosbag::MessageInstance &m : img_view) {
+  for (const rosbag::MessageInstance &m : img_view)
+  {
     cnt++;
-    if (cnt == 1) {
+    if (cnt == 1)
+    {
       sensor_msgs::Image image;
       image = *(m.instantiate<sensor_msgs::Image>()); // message type
       cv_bridge::CvImagePtr img_ptr =
@@ -1455,10 +1587,17 @@ void Calibration::loadImgAndPointcloud(
   ROS_INFO("Sucessfully load Point Cloud and Image");
 }
 
+/*
+points는 lidar를 projection시키고 knn을 했을 때 주변 포인트 최대5개를 가지고
+covraiance를 구해서 covariance의 고유값이 가장 큰 고유벡터가 line의 방향이므로
+direction에 라인방향을 넣어줌
+*/
 void Calibration::calcDirection(const std::vector<Eigen::Vector2d> &points,
-                                Eigen::Vector2d &direction) {
+                                Eigen::Vector2d &direction)
+{
   Eigen::Vector2d mean_point(0, 0);
-  for (size_t i = 0; i < points.size(); i++) {
+  for (size_t i = 0; i < points.size(); i++)
+  {
     mean_point(0) += points[i](0);
     mean_point(1) += points[i](1);
   }
@@ -1466,29 +1605,39 @@ void Calibration::calcDirection(const std::vector<Eigen::Vector2d> &points,
   mean_point(1) = mean_point(1) / points.size();
   Eigen::Matrix2d S;
   S << 0, 0, 0, 0;
-  for (size_t i = 0; i < points.size(); i++) {
+  // covariance 구하기
+  for (size_t i = 0; i < points.size(); i++)
+  {
     Eigen::Matrix2d s =
         (points[i] - mean_point) * (points[i] - mean_point).transpose();
     S += s;
   }
+
   Eigen::EigenSolver<Eigen::Matrix<double, 2, 2>> es(S);
   Eigen::MatrixXcd evecs = es.eigenvectors();
   Eigen::MatrixXcd evals = es.eigenvalues();
   Eigen::MatrixXd evalsReal;
   evalsReal = evals.real();
   Eigen::MatrixXf::Index evalsMax;
-  evalsReal.rowwise().sum().maxCoeff(&evalsMax); //得到最大特征值的位置
+  evalsReal.rowwise().sum().maxCoeff(&evalsMax); // 가장 큰 고유값의 위치 구하기
   direction << evecs.real()(0, evalsMax), evecs.real()(1, evalsMax);
 }
 
-cv::Mat Calibration::getProjectionImg(const Vector6d &extrinsic_params) {
+// Lidar PCL을 depth_projection_img canvas에 projection 시킴
+cv::Mat Calibration::getProjectionImg(const Vector6d &extrinsic_params)
+{
   cv::Mat depth_projection_img;
+  // Projection type이 Intensity
   projection(extrinsic_params, raw_lidar_cloud_, INTENSITY, false,
              depth_projection_img);
   cv::Mat map_img = cv::Mat::zeros(height_, width_, CV_8UC3);
-  for (int x = 0; x < map_img.cols; x++) {
-    for (int y = 0; y < map_img.rows; y++) {
+
+  for (int x = 0; x < map_img.cols; x++)
+  {
+    for (int y = 0; y < map_img.rows; y++)
+    {
       uint8_t r, g, b;
+      // projection 시킨 img의 norm을 구해서 rgb계산
       float norm = depth_projection_img.at<uchar>(y, x) / 256.0;
       mapJet(norm, 0, 1, r, g, b);
       map_img.at<cv::Vec3b>(y, x)[0] = b;
@@ -1496,10 +1645,14 @@ cv::Mat Calibration::getProjectionImg(const Vector6d &extrinsic_params) {
       map_img.at<cv::Vec3b>(y, x)[2] = r;
     }
   }
+
   cv::Mat merge_img;
-  if (image_.type() == CV_8UC3) {
+  if (image_.type() == CV_8UC3)
+  {
     merge_img = 0.5 * map_img + 0.8 * image_;
-  } else {
+  }
+  else
+  {
     cv::Mat src_rgb;
     cv::cvtColor(image_, src_rgb, cv::COLOR_GRAY2BGR);
     merge_img = 0.5 * map_img + 0.8 * src_rgb;

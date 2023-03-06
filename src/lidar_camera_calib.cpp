@@ -34,7 +34,8 @@ class pnp_calib {
 public:
   pnp_calib(PnPData p) { pd = p; }
   template <typename T>
-  bool operator()(const T *_q, const T *_t, T *residuals) const {
+  bool operator()(const T *_q, const T *_t, T *residuals) const
+  {
     Eigen::Matrix<T, 3, 3> innerT = inner.cast<T>();
     Eigen::Matrix<T, 4, 1> distorT = distor.cast<T>();
     Eigen::Quaternion<T> q_incre{_q[3], _q[0], _q[1], _q[2]};
@@ -48,8 +49,8 @@ public:
     const T &cx = innerT.coeffRef(0, 2);
     const T &fy = innerT.coeffRef(1, 1);
     const T &cy = innerT.coeffRef(1, 2);
-    T xo = (uo - cx) / fx;
-    T yo = (vo - cy) / fy;
+    T xo = (uo - cx) / fx; // p_c[0]/p_c[2]: X/Z
+    T yo = (vo - cy) / fy; // p_c[1]/p_c[2]: Y/Z
     T r2 = xo * xo + yo * yo;
     T r4 = r2 * r2;
     T distortion = 1.0 + distorT[0] * r2 + distorT[1] * r4;
@@ -77,7 +78,8 @@ class vpnp_calib {
 public:
   vpnp_calib(VPnPData p) { pd = p; }
   template <typename T>
-  bool operator()(const T *_q, const T *_t, T *residuals) const {
+  bool operator()(const T *_q, const T *_t, T *residuals) const
+  {
     Eigen::Matrix<T, 3, 3> innerT = inner.cast<T>();
     Eigen::Matrix<T, 4, 1> distorT = distor.cast<T>();
     Eigen::Quaternion<T> q_incre{_q[3], _q[0], _q[1], _q[2]};
@@ -136,18 +138,27 @@ private:
 };
 
 void roughCalib(Calibration &calibra, Vector6d &calib_params,
-                double search_resolution, int max_iter) {
+                double search_resolution, int max_iter)
+{
   float match_dis = 25;
   Eigen::Vector3d fix_adjust_euler(0, 0, 0);
-  for (int n = 0; n < 2; n++) {
-    for (int round = 0; round < 3; round++) {
+  for (int n = 0; n < 2; n++)
+  {
+    // round = roll, pitch, yaw
+    for (int round = 0; round < 3; round++)
+    {
       Eigen::Matrix3d rot;
       rot = Eigen::AngleAxisd(calib_params[0], Eigen::Vector3d::UnitZ()) *
             Eigen::AngleAxisd(calib_params[1], Eigen::Vector3d::UnitY()) *
             Eigen::AngleAxisd(calib_params[2], Eigen::Vector3d::UnitX());
       // std::cout << "init rot" << rot << std::endl;
       float min_cost = 1000;
-      for (int iter = 0; iter < max_iter; iter++) {
+      for (int iter = 0; iter < max_iter; iter++)
+      {
+        /*
+        adjust_euler가 rot(calib된거)에 step별로 조금씩 업데이트해서
+        Vpnp를 하고 cost를 구해서 최소화시킴
+        */
         Eigen::Vector3d adjust_euler = fix_adjust_euler;
         adjust_euler[round] = fix_adjust_euler[round] +
                               pow(-1, iter) * int(iter / 2) * search_resolution;
@@ -164,13 +175,16 @@ void roughCalib(Calibration &calibra, Vector6d &calib_params,
         Vector6d test_params;
         test_params << test_euler[0], test_euler[1], test_euler[2],
             calib_params[3], calib_params[4], calib_params[5];
+        // pnp list에 pnp할 데이터들 저장시켜놓음
         std::vector<VPnPData> pnp_list;
-        calibra.buildVPnp(test_params, match_dis, false,
+        calibra.buildVPnp(test_params, match_dis, SHOWRESIDUAL,
                           calibra.rgb_egde_cloud_, calibra.plane_line_cloud_,
                           pnp_list);
         float cost = (calibra.plane_line_cloud_->size() - pnp_list.size()) *
                      1.0 / calibra.plane_line_cloud_->size();
-        if (cost < min_cost) {
+        // pnp_list가 많으면 == cost가 min_cost보다 작으면 업데이트해줌          
+        if (cost < min_cost)
+        {
           std::cout << "Rough calibration min cost:" << cost << std::endl;
           min_cost = cost;
           calib_params[0] = test_params[0];
@@ -206,6 +220,7 @@ int main(int argc, char **argv) {
 
   // 에지, 복셀, plane 모두 구하고
   Calibration calibra(image_file, pcd_file, calib_config_file);
+  // intrinsic
   calibra.fx_ = camera_matrix[0];
   calibra.cx_ = camera_matrix[2];
   calibra.fy_ = camera_matrix[4];
@@ -215,6 +230,8 @@ int main(int argc, char **argv) {
   calibra.p1_ = dist_coeffs[2];
   calibra.p2_ = dist_coeffs[3];
   calibra.k3_ = dist_coeffs[4];
+
+  // initial extrinsic calib parameter
   Eigen::Vector3d init_euler_angle =
       calibra.init_rotation_matrix_.eulerAngles(2, 1, 0);
   Eigen::Vector3d init_transation = calibra.init_translation_vector_;
@@ -246,7 +263,10 @@ int main(int argc, char **argv) {
   sensor_msgs::PointCloud2 pub_cloud;
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(
       new pcl::PointCloud<pcl::PointXYZRGB>);
-  // 라이다에 rgb 컬러 입혀줌
+  /*
+  라이다에 rgb 컬러 입혀줌 그냥 아무 이미지 평면에 projection 시켜서
+  원래 이미지랑 같은 좌표에 있는 컬러를 넣어줌
+  */
   calibra.colorCloud(calib_params, 5, calibra.image_, calibra.raw_lidar_cloud_,
                      rgb_cloud);
 
@@ -255,14 +275,16 @@ int main(int argc, char **argv) {
 
   pub_cloud.header.frame_id = "livox";
   calibra.init_rgb_cloud_pub_.publish(pub_cloud);
+  // 원래 이미지랑 projection 시킨 이미지랑 합쳐서 merge_img 반환
   cv::Mat init_img = calibra.getProjectionImg(calib_params);
 
   cv::imshow("Initial extrinsic", init_img);
   cv::imwrite("/home/ycj/data/calib/init.png", init_img);
   cv::waitKey(1000);
 
-  if (use_rough_calib) {
-    roughCalib(calibra, calib_params, DEG2RAD(0.1), 50);
+  if (use_rough_calib)
+  {
+    roughCalib(calibra, calib_params, DEG2RAD(0.1), ROUGHCALIBITER);
   }
   cv::Mat test_img = calibra.getProjectionImg(calib_params);
   cv::imshow("After rough extrinsic", test_img);
@@ -274,22 +296,31 @@ int main(int argc, char **argv) {
   int dis_threshold = 30;
   bool opt_flag = true;
 
-  // Iteratively reducve the matching distance threshold
-  for (dis_threshold = 30; dis_threshold > 10; dis_threshold -= 1) {
+  /*
+  Iteratively reducve the matching distance threshold
+  min_distance를 계속 줄여가면서 pnpdata를 vpnp_list에 넣음
+  dis_threshold = 30; dis_threshold > 10
+  */
+  for (dis_threshold = 30; dis_threshold > 10; dis_threshold -= 1)
+  {
     // For each distance, do twice optimization
-    for (int cnt = 0; cnt < 2; cnt++) {
-      if (use_vpnp) {
+    for (int cnt = 0; cnt < 2; cnt++)
+    {
+      if (use_vpnp)
+      {
         calibra.buildVPnp(calib_params, dis_threshold, true,
                           calibra.rgb_egde_cloud_, calibra.plane_line_cloud_,
                           vpnp_list);
-      } else {
+      }
+      else
+      {
         calibra.buildPnp(calib_params, dis_threshold, true,
                          calibra.rgb_egde_cloud_, calibra.plane_line_cloud_,
                          pnp_list);
       }
       std::cout << "Iteration:" << iter++ << " Dis:" << dis_threshold
                 << " pnp size:" << vpnp_list.size() << std::endl;
-
+      
       cv::Mat projection_img = calibra.getProjectionImg(calib_params);
       cv::imshow("Optimization", projection_img);
       cv::waitKey(100);
@@ -318,14 +349,19 @@ int main(int argc, char **argv) {
 
       problem.AddParameterBlock(ext, 4, q_parameterization);
       problem.AddParameterBlock(ext + 4, 3);
-      if (use_vpnp) {
-        for (auto val : vpnp_list) {
+      if (use_vpnp)
+      {
+        for (auto val : vpnp_list)
+        {
           ceres::CostFunction *cost_function;
           cost_function = vpnp_calib::Create(val);
           problem.AddResidualBlock(cost_function, NULL, ext, ext + 4);
         }
-      } else {
-        for (auto val : pnp_list) {
+      }
+      else
+      {
+        for (auto val : pnp_list)
+        {
           ceres::CostFunction *cost_function;
           cost_function = pnp_calib::Create(val);
           problem.AddResidualBlock(cost_function, NULL, ext, ext + 4);
