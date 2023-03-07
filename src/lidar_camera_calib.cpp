@@ -30,7 +30,8 @@ Eigen::Vector4d quaternion;
 Eigen::Vector3d transation;
 
 // Normal pnp solution
-class pnp_calib {
+class pnp_calib
+{
 public:
   pnp_calib(PnPData p) { pd = p; }
   template <typename T>
@@ -53,6 +54,12 @@ public:
     T yo = (vo - cy) / fy; // p_c[1]/p_c[2]: Y/Z
     T r2 = xo * xo + yo * yo;
     T r4 = r2 * r2;
+    
+    /*
+    distorT[0],[1] : radial distortion, distorT[2],[3] : tangential distorT
+    xd, vd는 왜곡을 고려
+    ud, vd는 image plane에 올려주는것(intrinsic calib)
+    */    
     T distortion = 1.0 + distorT[0] * r2 + distorT[1] * r4;
     T xd = xo * distortion + (distorT[2] * xo * yo + distorT[2] * xo * yo) +
            distorT[3] * (r2 + xo * xo + xo * xo);
@@ -60,11 +67,16 @@ public:
            distorT[2] * (r2 + yo * yo + yo * yo);
     T ud = fx * xd + cx;
     T vd = fy * yd + cy;
+    /*
+    ud, vd는 pinhole 카메라의 왜곡과 intrinsic을 고려해준 픽셀
+    pd.u,v는 search한 lidar포인트와 가장 가까운 cam point를 넣어준거
+    */
     residuals[0] = ud - T(pd.u);
     residuals[1] = vd - T(pd.v);
     return true;
   }
-  static ceres::CostFunction *Create(PnPData p) {
+  static ceres::CostFunction *Create(PnPData p)
+  {
     return (
         new ceres::AutoDiffCostFunction<pnp_calib, 2, 4, 3>(new pnp_calib(p)));
   }
@@ -104,10 +116,13 @@ public:
            distorT[2] * (r2 + yo * yo + yo * yo);
     T ud = fx * xd + cx;
     T vd = fy * yd + cy;
-    if (T(pd.direction(0)) == T(0.0) && T(pd.direction(1)) == T(0.0)) {
+    if (T(pd.direction(0)) == T(0.0) && T(pd.direction(1)) == T(0.0))
+    {
       residuals[0] = ud - T(pd.u);
       residuals[1] = vd - T(pd.v);
-    } else {
+    }
+    else
+    {
       residuals[0] = ud - T(pd.u);
       residuals[1] = vd - T(pd.v);
       Eigen::Matrix<T, 2, 2> I =
@@ -128,7 +143,8 @@ public:
     }
     return true;
   }
-  static ceres::CostFunction *Create(VPnPData p) {
+  static ceres::CostFunction *Create(VPnPData p)
+  {
     return (new ceres::AutoDiffCostFunction<vpnp_calib, 2, 4, 3>(
         new vpnp_calib(p)));
   }

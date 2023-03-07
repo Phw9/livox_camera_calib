@@ -31,11 +31,13 @@ Eigen::Vector4d quaternion;
 Eigen::Vector3d transation;
 
 // Normal pnp solution
-class pnp_calib {
+class pnp_calib
+{
 public:
   pnp_calib(PnPData p) { pd = p; }
   template <typename T>
-  bool operator()(const T *_q, const T *_t, T *residuals) const {
+  bool operator()(const T *_q, const T *_t, T *residuals) const
+  {
     Eigen::Matrix<T, 3, 3> innerT = inner.cast<T>();
     Eigen::Matrix<T, 4, 1> distorT = distor.cast<T>();
     Eigen::Quaternion<T> q_incre{_q[3], _q[0], _q[1], _q[2]};
@@ -64,7 +66,8 @@ public:
     residuals[1] = vd - T(pd.v);
     return true;
   }
-  static ceres::CostFunction *Create(PnPData p) {
+  static ceres::CostFunction *Create(PnPData p)
+  {
     return (
         new ceres::AutoDiffCostFunction<pnp_calib, 2, 4, 3>(new pnp_calib(p)));
   }
