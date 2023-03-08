@@ -31,6 +31,8 @@
 #include <time.h>
 #include <unordered_map>
 
+#define TEST 101010
+
 #define SHOWRESIDUAL true
 #define ROUGHCALIBITER 50
 #define calib
