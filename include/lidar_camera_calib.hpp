@@ -31,12 +31,11 @@
 #include <time.h>
 #include <unordered_map>
 
-#define TEST 101010
-
 #define SHOWRESIDUAL true
-#define ROUGHCALIBITER 50
-#define calib
-#define online
+#define ROUGHCALIBITER 30
+#define DISTHRESHOLD_START 30
+#define DISTHRESHOLD_END 10
+
 class Calibration
 {
 public:
@@ -57,14 +56,14 @@ public:
   std::string image_topic_name_ = "";
 
   // L2 norm으로 구한 에지 최소 길이, canny threshold
-  int rgb_edge_minLen_ = 200;
-  int rgb_canny_threshold_ = 20;
-  int min_depth_ = 2.5;
-  int max_depth_ = 50;
-  int plane_max_size_ = 5;
-  float detect_line_threshold_ = 0.02;
-  int line_number_ = 0;
-  int color_intensity_threshold_ = 5;
+  int rgb_edge_minLen_ = 200;          // 200
+  int rgb_canny_threshold_ = 20;       // 20
+  int min_depth_ = 2.5;                // 2.5
+  int max_depth_ = 50;                 // 50
+  int plane_max_size_ = 5;             // 5
+  float detect_line_threshold_ = 0.02; // 0.02
+  int line_number_ = 0;                // 0
+  int color_intensity_threshold_ = 5;  // 5
   Eigen::Vector3d adjust_euler_angle_;
   Calibration(const std::string &image_file, const std::string &pcd_file,
               const std::string &calib_config_file);
@@ -74,6 +73,7 @@ public:
   bool loadCameraConfig(const std::string &camera_file);
   bool loadCalibConfig(const std::string &config_file);
   bool loadConfig(const std::string &configFile);
+  // image plane의 해상도 밖으로 벗어났는지 확인
   bool checkFov(const cv::Point2d &p);
   void colorCloud(const Vector6d &extrinsic_params, const int density,
                   const cv::Mat &rgb_img,
@@ -182,11 +182,14 @@ Calibration::Calibration(const std::string &image_file,
   loadCalibConfig(calib_config_file);
 
   image_ = cv::imread(image_file, cv::IMREAD_UNCHANGED);
-  if (!image_.data) {
+  if (!image_.data)
+  {
     std::string msg = "Can not load image from " + image_file;
     ROS_ERROR_STREAM(msg.c_str());
     exit(-1);
-  } else {
+  }
+  else
+  {
     std::string msg = "Sucessfully load image!";
     ROS_INFO_STREAM(msg.c_str());
   }
@@ -194,11 +197,16 @@ Calibration::Calibration(const std::string &image_file,
   width_ = image_.cols;
   height_ = image_.rows;
   // check rgb or gray
-  if (image_.type() == CV_8UC1) {
+  if (image_.type() == CV_8UC1)
+  {
     grey_image_ = image_;
-  } else if (image_.type() == CV_8UC3) {
+  }
+  else if (image_.type() == CV_8UC3)
+  {
     cv::cvtColor(image_, grey_image_, cv::COLOR_BGR2GRAY);
-  } else {
+  }
+  else
+  {
     std::string msg = "Unsupported image type, please use CV_8UC3 or CV_8UC1";
     ROS_ERROR_STREAM(msg.c_str());
     exit(-1);
@@ -241,9 +249,11 @@ Calibration::Calibration(const std::string &image_file,
                       plane_line_cloud_);
 };
 
-bool Calibration::loadCameraConfig(const std::string &camera_file) {
+bool Calibration::loadCameraConfig(const std::string &camera_file)
+{
   cv::FileStorage cameraSettings(camera_file, cv::FileStorage::READ);
-  if (!cameraSettings.isOpened()) {
+  if (!cameraSettings.isOpened())
+  {
     std::cerr << "Failed to open camera settings file at " << camera_file
               << std::endl;
     exit(-1);
@@ -266,7 +276,8 @@ bool Calibration::loadCameraConfig(const std::string &camera_file) {
   return true;
 };
 
-bool Calibration::loadCalibConfig(const std::string &config_file) {
+bool Calibration::loadCalibConfig(const std::string &config_file)
+{
   cv::FileStorage fSettings(config_file, cv::FileStorage::READ);
   if (!fSettings.isOpened()) {
     std::cerr << "Failed to open settings file at: " << config_file
@@ -693,27 +704,35 @@ cv::Mat Calibration::getConnectImg(
   return connect_img;
 }
 
-bool Calibration::checkFov(const cv::Point2d &p) {
-  if (p.x > 0 && p.x < width_ && p.y > 0 && p.y < height_) {
+bool Calibration::checkFov(const cv::Point2d &p)
+{
+  if (p.x > 0 && p.x < width_ && p.y > 0 && p.y < height_)
+  {
     return true;
-  } else {
+  }
+  else
+  {
     return false;
   }
 }
 
 void Calibration::initVoxel(
     const pcl::PointCloud<pcl::PointXYZI>::Ptr &input_cloud,
-    const float voxel_size, std::unordered_map<VOXEL_LOC, Voxel *> &voxel_map) {
+    const float voxel_size, std::unordered_map<VOXEL_LOC, Voxel *> &voxel_map)
+{
   ROS_INFO_STREAM("Building Voxel");
   // for voxel test
   srand((unsigned)time(NULL));
   pcl::PointCloud<pcl::PointXYZRGB> test_cloud;
-  for (size_t i = 0; i < input_cloud->size(); i++) {
+  for (size_t i = 0; i < input_cloud->size(); i++)
+  {
     const pcl::PointXYZI &p_c = input_cloud->points[i];
     float loc_xyz[3];
-    for (int j = 0; j < 3; j++) {
+    for (int j = 0; j < 3; j++)
+    {
       loc_xyz[j] = p_c.data[j] / voxel_size;
-      if (loc_xyz[j] < 0) {
+      if (loc_xyz[j] < 0)
+      {
         loc_xyz[j] -= 1.0;
       }
     }
@@ -721,7 +740,8 @@ void Calibration::initVoxel(
     VOXEL_LOC position((int64_t)loc_xyz[0], (int64_t)loc_xyz[1],
                        (int64_t)loc_xyz[2]);
     auto iter = voxel_map.find(position);
-    if (iter != voxel_map.end()) {
+    if (iter != voxel_map.end())
+    {
       voxel_map[position]->cloud->push_back(p_c);
       pcl::PointXYZRGB p_rgb;
       p_rgb.x = p_c.x;
@@ -731,7 +751,9 @@ void Calibration::initVoxel(
       p_rgb.g = voxel_map[position]->voxel_color(1);
       p_rgb.b = voxel_map[position]->voxel_color(2);
       test_cloud.push_back(p_rgb);
-    } else {
+    }
+    else
+    {
       Voxel *voxel = new Voxel(voxel_size);
       voxel_map[position] = voxel;
       voxel_map[position]->voxel_origin[0] = position.x * voxel_size;
@@ -748,9 +770,11 @@ void Calibration::initVoxel(
   // pcl::toROSMsg(test_cloud, pub_cloud);
   // pub_cloud.header.frame_id = "livox";
   // rgb_cloud_pub_.publish(pub_cloud);
-  for (auto iter = voxel_map.begin(); iter != voxel_map.end(); iter++) {
-    if (iter->second->cloud->size() > 20) {
-      // 2cm로 feat_map에 down sampling해서 저장
+  for (auto iter = voxel_map.begin(); iter != voxel_map.end(); iter++)
+  {
+    if (iter->second->cloud->size() > 20)
+    {
+      // 2cm(0.02)로 feat_map에 down sampling해서 저장
       down_sampling_voxel(*(iter->second->cloud), 0.02);
     }
   }
@@ -863,7 +887,8 @@ void Calibration::LiDAREdgeExtraction(
         extract.filter(cloud_f);
         *cloud_filter = cloud_f;
       }
-      if (plane_list.size() >= 2) {
+      if (plane_list.size() >= 2)
+      {
         sensor_msgs::PointCloud2 planner_cloud2;
         pcl::toROSMsg(color_planner_cloud, planner_cloud2);
         planner_cloud2.header.frame_id = "livox";
@@ -929,7 +954,7 @@ void Calibration::calcLine(
         float y2 = plane_list[plane_index2].p_center.y;
         float z2 = plane_list[plane_index2].p_center.z;
         float theta = a1 * a2 + b1 * b2 + c1 * c2;
-        //
+        // 
         float point_dis_threshold = 0.00;
         if (theta > theta_max_ && theta < theta_min_)
         {
@@ -1254,8 +1279,8 @@ void Calibration::buildVPnp(
   std::vector<Eigen::Vector2d> lidar_direction_list;
   std::vector<int> lidar_2d_number;
   /*
-  lidar_edge의 points가지고 knn 서치를 해서 포인트를 찾고 각각 lidar랑 cam에서
-  1개이상 찾으면 distance를 구하고 threshold보다 안넘으면 p_l_2d랑 p_c_2d(포인트중에 
+  lidar_edge의 points가지고 knn 서치를 해서 포인트를 5개 찾고 각각 lidar랑 cam에서
+  1개이상 찾으면 distance를 구하고 threshold를 안넘으면 p_l_2d랑 p_c_2d(포인트중에 
   distance가 가장적은애[0])에 넣고 calcDirection에서 lidar와 cam에서 line의
   direction을 각각 구해서 direction_list에 넣어줌
   */
@@ -1317,7 +1342,7 @@ void Calibration::buildVPnp(
     }
   }
   /*
-  pnp할 데이터 pnp_list에 넣어줌 x,y,z는 points의 평균이고,
+  pnp할 데이터 pnp_list에 넣어줌 x,y,z는 edge points의 평균이고,
   u,v는 search한 lidar포인트와 가장 가까운 cam point를 넣어준거
   direction을 cam과 lidar 각각 넣어주고 lidar_2d_nuber은 line_edge_cloud_2d_num임
   */
@@ -1661,10 +1686,11 @@ cv::Mat Calibration::getProjectionImg(const Vector6d &extrinsic_params)
   }
   return merge_img;
 }
-
+// Residual 구하는 함수
 void Calibration::calcResidual(const Vector6d &extrinsic_params,
                                const std::vector<VPnPData> vpnp_list,
-                               std::vector<float> &residual_list) {
+                               std::vector<float> &residual_list)
+{
   residual_list.clear();
   Eigen::Vector3d euler_angle(extrinsic_params[0], extrinsic_params[1],
                               extrinsic_params[2]);
@@ -1675,7 +1701,8 @@ void Calibration::calcResidual(const Vector6d &extrinsic_params,
       Eigen::AngleAxisd(extrinsic_params[2], Eigen::Vector3d::UnitX());
   Eigen::Vector3d transation(extrinsic_params[3], extrinsic_params[4],
                              extrinsic_params[5]);
-  for (size_t i = 0; i < vpnp_list.size(); i++) {
+  for (size_t i = 0; i < vpnp_list.size(); i++)
+  {
     Eigen::Vector2d residual;
     Eigen::Matrix2f var;
     calcCovarance(extrinsic_params, vpnp_list[i], 1, 0.02, 0.05, var);
@@ -1688,6 +1715,9 @@ void Calibration::calcResidual(const Vector6d &extrinsic_params,
     inner << fx, 0, cx, 0, fy, cy, 0, 0, 1;
     Eigen::Vector4d distor;
     distor << k1_, k2_, p1_, p2_;
+    /*
+    vpnp list에 있는 (X,Y,Z) 포인트들을 
+    */
     Eigen::Vector3d p_l(vpnp_point.x, vpnp_point.y, vpnp_point.z);
     Eigen::Vector3d p_c = rotation_matrix * p_l + transation;
     Eigen::Vector3d p_2 = inner * p_c;
@@ -1730,12 +1760,13 @@ void Calibration::calcResidual(const Vector6d &extrinsic_params,
     residual_list.push_back(cost);
   }
 }
-
+// pixel_inc = 1, range_inc = 0.02, degree_inc = 0.05
 void Calibration::calcCovarance(const Vector6d &extrinsic_params,
                                 const VPnPData &vpnp_point,
                                 const float pixel_inc, const float range_inc,
                                 const float degree_inc,
-                                Eigen::Matrix2f &covarance) {
+                                Eigen::Matrix2f &covarance)
+{
   Eigen::Matrix3d rotation;
   rotation = Eigen::AngleAxisd(extrinsic_params[0], Eigen::Vector3d::UnitZ()) *
              Eigen::AngleAxisd(extrinsic_params[1], Eigen::Vector3d::UnitY()) *
@@ -1746,9 +1777,14 @@ void Calibration::calcCovarance(const Vector6d &extrinsic_params,
   float cx = cx_;
   float fy = fy_;
   float cy = cy_;
+  // extrinsic 곱해줌
   Eigen::Vector3f p_l(vpnp_point.x, vpnp_point.y, vpnp_point.z);
   Eigen::Vector3f p_c = rotation.cast<float>() * p_l + transation.cast<float>();
-
+  /*
+var_camera_pixel = {1 0
+                    0 1}
+var_lidar_pixel = ()                    
+  */ 
   Eigen::Matrix2f var_camera_pixel;
   var_camera_pixel << pow(pixel_inc, 2), 0, 0, pow(pixel_inc, 2);
 
@@ -1757,21 +1793,47 @@ void Calibration::calcCovarance(const Vector6d &extrinsic_params,
                      vpnp_point.z * vpnp_point.z);
   Eigen::Vector3f direction(vpnp_point.x, vpnp_point.y, vpnp_point.z);
   direction.normalize();
+  /*
+  direction을 normalize하고
+  direction_hat = {0 -z  y
+                   z  0 -x
+                  -y  x  0}
+  */
   Eigen::Matrix3f direction_hat;
   direction_hat << 0, -direction(2), direction(1), direction(2), 0,
       -direction(0), -direction(1), direction(0), 0;
+  // range_var = 0.02 * 0.02
   float range_var = range_inc * range_inc;
+  /*
+  direction_var = {sin(0.000174)^2        0 
+                          0        sin(0.000174)^2}
+  */
   Eigen::Matrix2f direction_var;
   direction_var << pow(sin(DEG2RAD(degree_inc)), 2), 0, 0,
       pow(sin(DEG2RAD(degree_inc)), 2);
+  
+  /*
+  direction = [x,y,z] 의 normalize
+  base_vector1 = [1, 1, -(x+y)/z] , 후에 normalize
+  둘이 외적
+  base_vector2 = [y-(x+y), -(-x(x+y)/z-z), x-y]
+  */
   Eigen::Vector3f base_vector1(1, 1,
                                -(direction(0) + direction(1)) / direction(2));
   base_vector1.normalize();
   Eigen::Vector3f base_vector2 = base_vector1.cross(direction);
   base_vector2.normalize();
+  /*
+  N = {   1            y-(x+y)
+          1        -(-x(x+y)/z-z)
+      -(x+y)/z          x-y     }
+  */
   Eigen::Matrix<float, 3, 2> N;
   N << base_vector1(0), base_vector2(0), base_vector1(1), base_vector2(1),
       base_vector1(2), base_vector2(2);
+  /*
+  A = {}
+  */
   Eigen::Matrix<float, 3, 2> A = range * direction_hat * N;
   Eigen::Matrix3f lidar_position_var =
       direction * range_var * direction.transpose() +

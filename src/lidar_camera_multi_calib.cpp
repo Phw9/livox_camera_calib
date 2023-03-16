@@ -81,7 +81,8 @@ class vpnp_calib {
 public:
   vpnp_calib(VPnPData p) { pd = p; }
   template <typename T>
-  bool operator()(const T *_q, const T *_t, T *residuals) const {
+  bool operator()(const T *_q, const T *_t, T *residuals) const
+  {
     Eigen::Matrix<T, 3, 3> innerT = inner.cast<T>();
     Eigen::Matrix<T, 4, 1> distorT = distor.cast<T>();
     Eigen::Quaternion<T> q_incre{_q[3], _q[0], _q[1], _q[2]};
@@ -106,10 +107,13 @@ public:
            distorT[2] * (r2 + yo * yo + yo * yo);
     T ud = fx * xd + cx;
     T vd = fy * yd + cy;
-    if (T(pd.direction(0)) == T(0.0) && T(pd.direction(1)) == T(0.0)) {
+    if (T(pd.direction(0)) == T(0.0) && T(pd.direction(1)) == T(0.0))
+    {
       residuals[0] = ud - T(pd.u);
       residuals[1] = vd - T(pd.v);
-    } else {
+    }
+    else
+    {
       residuals[0] = ud - T(pd.u);
       residuals[1] = vd - T(pd.v);
       Eigen::Matrix<T, 2, 2> I =
@@ -127,7 +131,8 @@ public:
     }
     return true;
   }
-  static ceres::CostFunction *Create(VPnPData p) {
+  static ceres::CostFunction *Create(VPnPData p)
+  {
     return (new ceres::AutoDiffCostFunction<vpnp_calib, 2, 4, 3>(
         new vpnp_calib(p)));
   }
@@ -137,18 +142,21 @@ private:
 };
 
 void roughCalib(std::vector<Calibration> &calibs, Vector6d &calib_params,
-                double search_resolution, int max_iter) {
+                double search_resolution, int max_iter)
+{
   float match_dis = 25;
   Eigen::Vector3d fix_adjust_euler(0, 0, 0);
   for (int n = 0; n < 2; n++)
-    for (int round = 0; round < 3; round++) {
+    for (int round = 0; round < 3; round++)
+    {
       Eigen::Matrix3d rot;
       rot = Eigen::AngleAxisd(calib_params[0], Eigen::Vector3d::UnitZ()) *
             Eigen::AngleAxisd(calib_params[1], Eigen::Vector3d::UnitY()) *
             Eigen::AngleAxisd(calib_params[2], Eigen::Vector3d::UnitX());
       // std::cout << "init rot" << rot << std::endl;
       float min_cost = 1000;
-      for (int iter = 0; iter < max_iter; iter++) {
+      for (int iter = 0; iter < max_iter; iter++)
+      {
         Eigen::Vector3d adjust_euler = fix_adjust_euler;
         adjust_euler[round] = fix_adjust_euler[round] +
                               pow(-1, iter) * int(iter / 2) * search_resolution;
@@ -176,7 +184,8 @@ void roughCalib(std::vector<Calibration> &calibs, Vector6d &calib_params,
                   1.0 / calibs[i].plane_line_cloud_->size();
         std::cout << "n " << n << " round " << round << " iter " << iter
                   << " cost:" << cost << std::endl;
-        if (cost < min_cost) {
+        if (cost < min_cost)
+        {
           std::cout << "Rough calibration min cost:" << cost << std::endl;
           min_cost = cost;
           calib_params[0] = test_params[0];
@@ -193,7 +202,8 @@ void roughCalib(std::vector<Calibration> &calibs, Vector6d &calib_params,
     }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   ros::init(argc, argv, "lidarCamCalib");
   ros::NodeHandle nh;
   ros::Rate loop_rate(0.1);
@@ -209,7 +219,8 @@ int main(int argc, char **argv) {
   nh.param<string>("calib/calib_config_file", calib_config_file, "");
 
   std::vector<Calibration> calibs;
-  for (size_t i = 0; i < data_num; i++) {
+  for (size_t i = 0; i < data_num; i++)
+  {
     string image_file, pcd_file = "";
     image_file = image_path + "/" + std::to_string(i) + ".bmp";
     pcd_file = pcd_path + "/" + std::to_string(i) + ".pcd";

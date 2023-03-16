@@ -123,6 +123,15 @@ public:
     }
     else
     {
+      /*
+      V = (cam_direction_x cam_direction_y)^T * (cam_direction_x cam_direction_y)
+      V = (1-xx  -xy
+            -xy  1-yy)
+      R = (residual[0] residual[1])^T
+
+      R = ( (1-xx)*r[0] - xy*r[1]   (1-yy)*r[1] -xy*r[0] )^T
+      )
+      */
       residuals[0] = ud - T(pd.u);
       residuals[1] = vd - T(pd.v);
       Eigen::Matrix<T, 2, 2> I =
@@ -218,7 +227,8 @@ void roughCalib(Calibration &calibra, Vector6d &calib_params,
   }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   
   ros::init(argc, argv, "lidarCamCalib");
   ros::NodeHandle nh;
@@ -227,6 +237,7 @@ int main(int argc, char **argv) {
   nh.param<string>("common/image_file", image_file, "");
   nh.param<string>("common/pcd_file", pcd_file, "");
   nh.param<string>("common/result_file", result_file, "");
+
   std::cout << "pcd_file path:" << pcd_file << std::endl;
   nh.param<vector<double>>("camera/camera_matrix", camera_matrix,
                            vector<double>());
@@ -309,7 +320,7 @@ int main(int argc, char **argv) {
   // Maximum match distance threshold: 15 pixels
   // If initial extrinsic lead to error over 15 pixels, the algorithm will not
   // work
-  int dis_threshold = 30;
+  int dis_threshold = DISTHRESHOLD_START;
   bool opt_flag = true;
 
   /*
@@ -317,7 +328,7 @@ int main(int argc, char **argv) {
   min_distance를 계속 줄여가면서 pnpdata를 vpnp_list에 넣음
   dis_threshold = 30; dis_threshold > 10
   */
-  for (dis_threshold = 30; dis_threshold > 10; dis_threshold -= 1)
+  for (dis_threshold = DISTHRESHOLD_START; dis_threshold > DISTHRESHOLD_END; dis_threshold -= 1)
   {
     // For each distance, do twice optimization
     for (int cnt = 0; cnt < 2; cnt++)
@@ -418,7 +429,8 @@ int main(int argc, char **argv) {
       //   break;
       // }
     }
-    if (!opt_flag) {
+    if (!opt_flag)
+    {
       break;
     }
   }
@@ -430,7 +442,8 @@ int main(int argc, char **argv) {
       Eigen::AngleAxisd(calib_params[1], Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(calib_params[2], Eigen::Vector3d::UnitX());
   std::ofstream outfile(result_file);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; i++)
+  {
     outfile << R(i, 0) << "," << R(i, 1) << "," << R(i, 2) << "," << T[i]
             << std::endl;
   }
@@ -448,7 +461,8 @@ int main(int argc, char **argv) {
   // ","
   //         << RAD2DEG(adjust_euler[2]) << "," << 0 << "," << 0 << "," << 0
   //         << std::endl;
-  while (ros::ok()) {
+  while (ros::ok())
+  {
     sensor_msgs::PointCloud2 pub_cloud;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(
         new pcl::PointCloud<pcl::PointXYZRGB>);
