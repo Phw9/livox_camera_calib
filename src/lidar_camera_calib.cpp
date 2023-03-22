@@ -219,6 +219,7 @@ void roughCalib(Calibration &calibra, Vector6d &calib_params,
                             calibra.rgb_egde_cloud_, calibra.plane_line_cloud_,
                             pnp_list);
           cv::Mat projection_img = calibra.getProjectionImg(calib_params);
+          cv::namedWindow("Rough Optimization", cv::WINDOW_NORMAL);          
           cv::imshow("Rough Optimization", projection_img);
           cv::waitKey(50);
         }
@@ -305,8 +306,9 @@ int main(int argc, char **argv)
   // 원래 이미지랑 projection 시킨 이미지랑 합쳐서 merge_img 반환
   cv::Mat init_img = calibra.getProjectionImg(calib_params);
 
+  cv::namedWindow("Initial extrinsic", cv::WINDOW_NORMAL);
   cv::imshow("Initial extrinsic", init_img);
-  cv::imwrite("/home/ycj/data/calib/init.png", init_img);
+  cv::imwrite("~/workspace/src/livox_camera_calib/result/init.png", init_img);
   cv::waitKey(1000);
 
   if (use_rough_calib)
@@ -314,7 +316,9 @@ int main(int argc, char **argv)
     roughCalib(calibra, calib_params, DEG2RAD(0.1), ROUGHCALIBITER);
   }
   cv::Mat test_img = calibra.getProjectionImg(calib_params);
+  cv::namedWindow("After rough extrinsic", cv::WINDOW_NORMAL);
   cv::imshow("After rough extrinsic", test_img);
+  cv::imwrite("~/workspace/src/livox_camera_calib/result/after_rough.png", test_img);
   cv::waitKey(1000);
   int iter = 0;
   // Maximum match distance threshold: 15 pixels
@@ -349,6 +353,7 @@ int main(int argc, char **argv)
                 << " pnp size:" << vpnp_list.size() << std::endl;
       
       cv::Mat projection_img = calibra.getProjectionImg(calib_params);
+      cv::namedWindow("Optimization", cv::WINDOW_NORMAL);      
       cv::imshow("Optimization", projection_img);
       cv::waitKey(100);
       Eigen::Vector3d euler_angle(calib_params[0], calib_params[1],
@@ -449,8 +454,11 @@ int main(int argc, char **argv)
   }
   outfile << 0 << "," << 0 << "," << 0 << "," << 1 << std::endl;
   cv::Mat opt_img = calibra.getProjectionImg(calib_params);
+  cv::Mat edge_img = calibra.getProjectionLidarEdgeImg(calib_params);
+
+  cv::imshow("Edge result", edge_img);
   cv::imshow("Optimization result", opt_img);
-  cv::imwrite("/home/ycj/data/calib/opt.png", opt_img);
+  cv::imwrite("~/workspace/src/livox_camera_calib/result/opt.png", opt_img);
   cv::waitKey(1000);
   Eigen::Matrix3d init_rotation;
   init_rotation << 0, -1.0, 0, 0, 0, -1.0, 1, 0, 0;

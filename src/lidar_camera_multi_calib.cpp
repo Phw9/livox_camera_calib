@@ -195,6 +195,7 @@ void roughCalib(std::vector<Calibration> &calibs, Vector6d &calib_params,
                               calibs[0].rgb_egde_cloud_,
                               calibs[0].plane_line_cloud_, pnp_list);
           cv::Mat projection_img = calibs[0].getProjectionImg(calib_params);
+          cv::namedWindow("Rough Optimization", cv::WINDOW_NORMAL);          
           cv::imshow("Rough Optimization", projection_img);
           cv::waitKey(50);
         }
@@ -269,12 +270,14 @@ int main(int argc, char **argv)
   calib_params[4] = T[1];
   calib_params[5] = T[2];
   cv::Mat init_img = calibs[0].getProjectionImg(calib_params);
+  cv::namedWindow("Initial extrinsic", cv::WINDOW_NORMAL);            
   cv::imshow("Initial extrinsic", init_img);
   cv::waitKey(1000);
   if (use_rough_calib) {
     roughCalib(calibs, calib_params, DEG2RAD(0.2), 40);
   }
   cv::Mat test_img = calibs[0].getProjectionImg(calib_params);
+  cv::namedWindow("After rough extrinsic", cv::WINDOW_NORMAL);  
   cv::imshow("After rough extrinsic", test_img);
   cv::waitKey(1000);
   int iter = 0;
@@ -302,6 +305,7 @@ int main(int argc, char **argv)
       std::cout << "Iteration:" << iter++ << " Dis:" << dis_threshold
                 << " pnp size: " << vpnp_size << std::endl;
       cv::Mat projection_img = calibs[0].getProjectionImg(calib_params);
+      cv::namedWindow("Optimization", cv::WINDOW_NORMAL);                
       cv::imshow("Optimization", projection_img);
       cv::waitKey(100);
       Eigen::Vector3d euler_angle(calib_params[0], calib_params[1],

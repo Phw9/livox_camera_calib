@@ -108,6 +108,8 @@ public:
                 const pcl::PointCloud<pcl::PointXYZ>::Ptr &rgb_edge_cloud,
                 const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud);
   cv::Mat getProjectionImg(const Vector6d &extrinsic_params);
+  cv::Mat getProjectionLidarEdgeImg(const Vector6d &extrinsic_params);
+
   void initVoxel(const pcl::PointCloud<pcl::PointXYZI>::Ptr &input_cloud,
                  const float voxel_size,
                  std::unordered_map<VOXEL_LOC, Voxel *> &voxel_map);
@@ -1245,6 +1247,8 @@ void Calibration::buildVPnp(
   {
     cv::Mat residual_img =
         getConnectImg(dis_threshold, cam_edge_cloud_2d, line_edge_cloud_2d);
+    
+    cv::namedWindow("residual", cv::WINDOW_NORMAL);              
     cv::imshow("residual", residual_img);
     cv::waitKey(100);
   }
@@ -1450,6 +1454,8 @@ void Calibration::buildPnp(
   {
     cv::Mat residual_img =
         getConnectImg(dis_threshold, cam_edge_cloud_2d, line_edge_cloud_2d);
+    
+    cv::namedWindow("residual", cv::WINDOW_NORMAL);              
     cv::imshow("residual", residual_img);
     cv::waitKey(100);
   }
@@ -1656,6 +1662,41 @@ cv::Mat Calibration::getProjectionImg(const Vector6d &extrinsic_params)
   cv::Mat depth_projection_img;
   // Projection type이 Intensity
   projection(extrinsic_params, raw_lidar_cloud_, INTENSITY, false,
+             depth_projection_img);
+  cv::Mat map_img = cv::Mat::zeros(height_, width_, CV_8UC3);
+
+  for (int x = 0; x < map_img.cols; x++)
+  {
+    for (int y = 0; y < map_img.rows; y++)
+    {
+      uint8_t r, g, b;
+      // projection 시킨 img의 norm을 구해서 rgb계산
+      float norm = depth_projection_img.at<uchar>(y, x) / 256.0;
+      mapJet(norm, 0, 1, r, g, b);
+      map_img.at<cv::Vec3b>(y, x)[0] = b;
+      map_img.at<cv::Vec3b>(y, x)[1] = g;
+      map_img.at<cv::Vec3b>(y, x)[2] = r;
+    }
+  }
+
+  cv::Mat merge_img;
+  if (image_.type() == CV_8UC3)
+  {
+    merge_img = 0.5 * map_img + 0.8 * image_;
+  }
+  else
+  {
+    cv::Mat src_rgb;
+    cv::cvtColor(image_, src_rgb, cv::COLOR_GRAY2BGR);
+    merge_img = 0.5 * map_img + 0.8 * src_rgb;
+  }
+  return merge_img;
+}
+cv::Mat Calibration::getProjectionLidarEdgeImg(const Vector6d &extrinsic_params)
+{
+  cv::Mat depth_projection_img;
+  // Projection type이 Intensity
+  projection(extrinsic_params, plane_line_cloud_, INTENSITY, false,
              depth_projection_img);
   cv::Mat map_img = cv::Mat::zeros(height_, width_, CV_8UC3);
 

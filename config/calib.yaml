@@ -4,19 +4,25 @@
 #     pcd_file: "/data/livox/single/0.pcd"
 #     result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
 
-# Data path. adjust them!
-common:
-    image_file: "/data/livox/livoxSDK/photo/8.bmp"
-    pcd_file: "/data/livox/livoxSDK/pcdFiles/8.pcd"
-    result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
+# # Data path. origin
+# common:
+#     image_file: "/data/livox/single/0.png"
+#     pcd_file: "/data/livox/single/0.pcd"
+#     result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
 
-# # Single_Camera Parameters. Adjust them!
+# # Single_Camera Parameters. origin
 # camera:
 #     camera_matrix: [1364.45, 0.0,      958.327,
 #                 0.0,     1366.46,  535.074,
 #                 0.0,     0.0,      1.0     ]
 #     dist_coeffs: [0.0958277, -0.198233, -0.000147133, -0.000430056, 0.000000]
 
+
+# Data path. livoxSDK
+common:
+    image_file: "/data/livox/livoxSDK/photo/0.bmp"
+    pcd_file: "/data/livox/livoxSDK/pcdFiles/0.pcd"
+    result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
 # LivoxSDK Parameters. Adjust them!
 camera:
     camera_matrix: [950.7548854113494, 0.0,      790.0352715473131,
@@ -32,14 +38,14 @@ camera:
 #                 0.0,     0.0,      1.0     ]
 #     dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
 
-# # Calibration Parameters.!
-# calib:
-#     calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_indoor.yaml"
-
-#     use_rough_calib: true # set true if your initial_extrinsic is bad
-
 # Calibration Parameters.!
 calib:
-    calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_outdoor.yaml"
+    calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_indoor.yaml"
 
-    use_rough_calib: true # set true if your initial_extrinsic is bad    
+    use_rough_calib: true # set true if your initial_extrinsic is bad
+
+# # Calibration Parameters.!
+# calib:
+#     calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_outdoor.yaml"
+
+#     use_rough_calib: true # set true if your initial_extrinsic is bad    
