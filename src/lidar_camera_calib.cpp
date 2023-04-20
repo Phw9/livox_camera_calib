@@ -308,7 +308,7 @@ int main(int argc, char **argv)
 
   cv::namedWindow("Initial extrinsic", cv::WINDOW_NORMAL);
   cv::imshow("Initial extrinsic", init_img);
-  cv::imwrite("~/workspace/src/livox_camera_calib/result/init.png", init_img);
+  cv::imwrite("/root/workspace/src/livox_camera_calib/result/init.png", init_img);
   cv::waitKey(1000);
 
   if (use_rough_calib)
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
   cv::Mat test_img = calibra.getProjectionImg(calib_params);
   cv::namedWindow("After rough extrinsic", cv::WINDOW_NORMAL);
   cv::imshow("After rough extrinsic", test_img);
-  cv::imwrite("~/workspace/src/livox_camera_calib/result/after_rough.png", test_img);
+  cv::imwrite("/root/workspace/src/livox_camera_calib/result/after_rough.png", test_img);
   cv::waitKey(1000);
   int iter = 0;
   // Maximum match distance threshold: 15 pixels
@@ -446,7 +446,8 @@ int main(int argc, char **argv)
   R = Eigen::AngleAxisd(calib_params[0], Eigen::Vector3d::UnitZ()) *
       Eigen::AngleAxisd(calib_params[1], Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(calib_params[2], Eigen::Vector3d::UnitX());
-  std::ofstream outfile(result_file);
+  std::ofstream outfile;
+  outfile.open(result_file, std::ios_base::out);
   for (int i = 0; i < 3; i++)
   {
     outfile << R(i, 0) << "," << R(i, 1) << "," << R(i, 2) << "," << T[i]
@@ -458,7 +459,7 @@ int main(int argc, char **argv)
 
   cv::imshow("Edge result", edge_img);
   cv::imshow("Optimization result", opt_img);
-  cv::imwrite("~/workspace/src/livox_camera_calib/result/opt.png", opt_img);
+  cv::imwrite("/root/workspace/src/livox_camera_calib/result/opt.png", opt_img);
   cv::waitKey(1000);
   Eigen::Matrix3d init_rotation;
   init_rotation << 0, -1.0, 0, 0, 0, -1.0, 1, 0, 0;
@@ -469,6 +470,7 @@ int main(int argc, char **argv)
   // ","
   //         << RAD2DEG(adjust_euler[2]) << "," << 0 << "," << 0 << "," << 0
   //         << std::endl;
+
   while (ros::ok())
   {
     sensor_msgs::PointCloud2 pub_cloud;
@@ -484,7 +486,12 @@ int main(int argc, char **argv)
             .toImageMsg();
     calibra.image_pub_.publish(img_msg);
     std::cout << "push enter to publish again" << std::endl;
-    getchar();
+    while(true)
+    {
+      char chend = cv::waitKey();
+      if(chend == 27) return 0; // ESC key
+    }
+    // getchar();
     /* code */
   }
   return 0;

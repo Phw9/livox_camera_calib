@@ -1,17 +1,25 @@
 # Data path. adjust them!
 common:
-    image_path:  "/data/livox/multi/image"
-    pcd_path:  "/data/livox/multi/pcd"
+    image_path:  "/data/livox/multi/myimage"
+    pcd_path:  "/data/livox/multi/mypcd"
     result_path:  "/root/workspace/src/livox_camera_calib/extrinsic.txt"
-    data_num: 3
+    data_num: 4
 # Camera Parameters. Adjust them!
+# camera:
+#     camera_matrix: [1704.1857 , 0.0,      886.5115,
+#                     0.0,     1719.5228,  467.9244,
+#                     0.0,     0.0,      1.0     ]
+#     dist_coeffs: [-0.0963, 0.0708, 0.0011, -0.0017, 0.000000]
+
+# CVLab parameter
 camera:
-    camera_matrix: [1704.1857 , 0.0,      886.5115,
-                    0.0,     1719.5228,  467.9244,
+    camera_matrix: [730.36420904 , 0.0,      645.99799046,
+                    0.0,     733.67527065,  365.40096857,
                     0.0,     0.0,      1.0     ]
-    dist_coeffs: [-0.0963, 0.0708, 0.0011, -0.0017, 0.000000]
+    dist_coeffs: [-3.79981127e-01, 2.17604998e-01, -1.71520118e-04, -3.23189296e-03, -5.39723857e-02]    
 
 # Calibration Parameters.!
 calib:
-    calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_outdoor.yaml"
+    # calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_outdoor.yaml"
+    calib_config_file: "/root/workspace/src/livox_camera_calib/config/config_indoor.yaml"
     use_rough_calib: true # set true if your initial_extrinsic is bad

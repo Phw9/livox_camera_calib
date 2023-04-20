@@ -1,42 +1,16 @@
 # # Data path. adjust them!
-# common:
-#     image_file: "/data/livox/single/0.png"
-#     pcd_file: "/data/livox/single/0.pcd"
-#     result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
-
-# # Data path. origin
-# common:
-#     image_file: "/data/livox/single/0.png"
-#     pcd_file: "/data/livox/single/0.pcd"
-#     result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
-
-# # Single_Camera Parameters. origin
-# camera:
-#     camera_matrix: [1364.45, 0.0,      958.327,
-#                 0.0,     1366.46,  535.074,
-#                 0.0,     0.0,      1.0     ]
-#     dist_coeffs: [0.0958277, -0.198233, -0.000147133, -0.000430056, 0.000000]
-
-
-# Data path. livoxSDK
 common:
-    image_file: "/data/livox/livoxSDK/photo/0.bmp"
-    pcd_file: "/data/livox/livoxSDK/pcdFiles/0.pcd"
+    image_file: "/data/livox/single/0.png"
+    pcd_file: "/data/livox/single/0.pcd"
     result_file: "/root/workspace/src/livox_camera_calib/result/extrinsic.txt"
-# LivoxSDK Parameters. Adjust them!
-camera:
-    camera_matrix: [950.7548854113494, 0.0,      790.0352715473131,
-                    0.0,     946.9223415597996,  258.3805580551492,
-                    0.0,     0.0,      1.0     ]
-    dist_coeffs: [-0.1325380224983683, 0.1489114203215932,
-        0.00155789518250265, 0.0001598589288879311, -0.04315983470550276]
 
-# CVLab Livox
-# camera:
-#     camera_matrix: [1.0, 0.0,  0.0,
-#                 0.0,     1.0,  0.0,
-#                 0.0,     0.0,      1.0     ]
-#     dist_coeffs: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+# Single_Camera Parameters. origin
+camera:
+    camera_matrix: [1364.45, 0.0,      958.327,
+                0.0,     1366.46,  535.074,
+                0.0,     0.0,      1.0     ]
+    dist_coeffs: [0.0958277, -0.198233, -0.000147133, -0.000430056, 0.000000]
 
 # Calibration Parameters.!
 calib:

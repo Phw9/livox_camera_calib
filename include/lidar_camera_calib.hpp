@@ -32,9 +32,9 @@
 #include <unordered_map>
 
 #define SHOWRESIDUAL true
-#define ROUGHCALIBITER 30
-#define DISTHRESHOLD_START 30
-#define DISTHRESHOLD_END 10
+#define ROUGHCALIBITER 30 // 50
+#define DISTHRESHOLD_START 30 // 30
+#define DISTHRESHOLD_END 10 // 10
 
 class Calibration
 {
@@ -107,6 +107,10 @@ public:
   getConnectImg(const int dis_threshold,
                 const pcl::PointCloud<pcl::PointXYZ>::Ptr &rgb_edge_cloud,
                 const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud);
+  cv::Mat
+  getConnectRawImg(const int dis_threshold,
+                const pcl::PointCloud<pcl::PointXYZ>::Ptr &rgb_edge_cloud,
+                const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud);
   cv::Mat getProjectionImg(const Vector6d &extrinsic_params);
   cv::Mat getProjectionLidarEdgeImg(const Vector6d &extrinsic_params);
 
@@ -132,6 +136,7 @@ public:
   cv::Mat camera_matrix_;
   cv::Mat dist_coeffs_;
   cv::Mat init_extrinsic_;
+  int undistort_img = 1; // for cvlab 0420 1=편다
 
   int is_use_custom_msg_;
   float voxel_size_ = 1.0;
@@ -147,6 +152,8 @@ public:
 
   cv::Mat rgb_image_;
   cv::Mat image_;
+  cv::Mat undistort_image_;
+  // cv::Mat rgb_residual_image_;
   cv::Mat grey_image_;
   // crop한 grayscale image
   cv::Mat cut_grey_image_;
@@ -180,10 +187,16 @@ Calibration::Calibration(const std::string &image_file,
                          const std::string &pcd_file,
                          const std::string &calib_config_file)
 {
-
   loadCalibConfig(calib_config_file);
-
+  loadCameraConfig(calib_config_file);
   image_ = cv::imread(image_file, cv::IMREAD_UNCHANGED);
+  if(undistort_img == 1)
+  {
+    cv::undistort(image_, undistort_image_, camera_matrix_, dist_coeffs_);
+    // image_ = undistort_img;
+    // cv::imshow("undistortimage_",undistort_img);
+    // cv::imshow("image_",image_);
+  }
   if (!image_.data)
   {
     std::string msg = "Can not load image from " + image_file;
@@ -198,6 +211,7 @@ Calibration::Calibration(const std::string &image_file,
   // 이미지 크기
   width_ = image_.cols;
   height_ = image_.rows;
+std::cout << width_ << ", " << height_;
   // check rgb or gray
   if (image_.type() == CV_8UC1)
   {
@@ -312,6 +326,7 @@ bool Calibration::loadCalibConfig(const std::string &config_file)
   direction_theta_min_ = cos(DEG2RAD(30.0));
   direction_theta_max_ = cos(DEG2RAD(150.0));
   color_intensity_threshold_ = fSettings["Color.intensity_threshold"];
+  undistort_img = fSettings["Undistort.img"]; // for cvlab 0420
   return true;
 };
 
@@ -568,7 +583,7 @@ void Calibration::projection(
   projection_img = image_project.clone();
 }
 
-// 填补雷达深度图像
+// 라이다 깊이 이미지 채우기
 cv::Mat Calibration::fillImg(const cv::Mat &input_img,
                              const Direction first_direct,
                              const Direction second_direct) {
@@ -610,6 +625,107 @@ cv::Mat Calibration::getConnectImg(
     const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud)
 {
   cv::Mat connect_img = cv::Mat::zeros(height_, width_, CV_8UC3);
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(
+      new pcl::search::KdTree<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud =
+      pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr tree_cloud =
+      pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+  kdtree->setInputCloud(rgb_edge_cloud);
+  tree_cloud = rgb_edge_cloud;
+  for (size_t i = 0; i < depth_edge_cloud->points.size(); i++)
+  {
+    cv::Point2d p2(depth_edge_cloud->points[i].x,
+                   -depth_edge_cloud->points[i].y);
+    if (checkFov(p2))
+    {
+      pcl::PointXYZ p = depth_edge_cloud->points[i];
+      search_cloud->points.push_back(p);
+    }
+  }
+
+  int line_count = 0;
+  // 이웃 수 지정
+  int K = 1;
+  // 이웃의 인덱스 값과 이웃의 중심 거리를 각각 저장할 두 개의 벡터를 만듭니다.
+  std::vector<int> pointIdxNKNSearch(K);
+  std::vector<float> pointNKNSquaredDistance(K);
+  for (size_t i = 0; i < search_cloud->points.size(); i++)
+  {
+    pcl::PointXYZ searchPoint = search_cloud->points[i];
+    if (kdtree->nearestKSearch(searchPoint, K, pointIdxNKNSearch,
+                               pointNKNSquaredDistance) > 0)
+    {
+      for (int j = 0; j < K; j++)
+      {
+        float distance = sqrt(
+            pow(searchPoint.x - tree_cloud->points[pointIdxNKNSearch[j]].x, 2) +
+            pow(searchPoint.y - tree_cloud->points[pointIdxNKNSearch[j]].y, 2));
+        if (distance < dis_threshold)
+        {
+          cv::Scalar color = cv::Scalar(0, 255, 0);
+          line_count++;
+          if ((line_count % 3) == 0)
+          {
+            cv::line(connect_img,
+                     cv::Point(search_cloud->points[i].x,
+                               -search_cloud->points[i].y),
+                     cv::Point(tree_cloud->points[pointIdxNKNSearch[j]].x,
+                               -tree_cloud->points[pointIdxNKNSearch[j]].y),
+                     color, 1);
+          }
+        }
+      }
+    }
+  }
+  for (size_t i = 0; i < rgb_edge_cloud->size(); i++) {
+    connect_img.at<cv::Vec3b>(-rgb_edge_cloud->points[i].y,
+                              rgb_edge_cloud->points[i].x)[0] = 255;
+    connect_img.at<cv::Vec3b>(-rgb_edge_cloud->points[i].y,
+                              rgb_edge_cloud->points[i].x)[1] = 0;
+    connect_img.at<cv::Vec3b>(-rgb_edge_cloud->points[i].y,
+                              rgb_edge_cloud->points[i].x)[2] = 0;
+  }
+  for (size_t i = 0; i < search_cloud->size(); i++) {
+    connect_img.at<cv::Vec3b>(-search_cloud->points[i].y,
+                              search_cloud->points[i].x)[0] = 0;
+    connect_img.at<cv::Vec3b>(-search_cloud->points[i].y,
+                              search_cloud->points[i].x)[1] = 0;
+    connect_img.at<cv::Vec3b>(-search_cloud->points[i].y,
+                              search_cloud->points[i].x)[2] = 255;
+  }
+  int expand_size = 2;
+  cv::Mat expand_edge_img;
+  expand_edge_img = connect_img.clone();
+  for (int x = expand_size; x < connect_img.cols - expand_size; x++) {
+    for (int y = expand_size; y < connect_img.rows - expand_size; y++) {
+      if (connect_img.at<cv::Vec3b>(y, x)[0] == 255) {
+        for (int xx = x - expand_size; xx <= x + expand_size; xx++) {
+          for (int yy = y - expand_size; yy <= y + expand_size; yy++) {
+            expand_edge_img.at<cv::Vec3b>(yy, xx)[0] = 255;
+            expand_edge_img.at<cv::Vec3b>(yy, xx)[1] = 0;
+            expand_edge_img.at<cv::Vec3b>(yy, xx)[2] = 0;
+          }
+        }
+      } else if (connect_img.at<cv::Vec3b>(y, x)[2] == 255) {
+        for (int xx = x - expand_size; xx <= x + expand_size; xx++) {
+          for (int yy = y - expand_size; yy <= y + expand_size; yy++) {
+            expand_edge_img.at<cv::Vec3b>(yy, xx)[0] = 0;
+            expand_edge_img.at<cv::Vec3b>(yy, xx)[1] = 0;
+            expand_edge_img.at<cv::Vec3b>(yy, xx)[2] = 255;
+          }
+        }
+      }
+    }
+  }
+  return connect_img;
+}
+cv::Mat Calibration::getConnectRawImg(
+    const int dis_threshold,
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr &rgb_edge_cloud,
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr &depth_edge_cloud)
+{
+  cv::Mat connect_img = image_.clone();
   pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(
       new pcl::search::KdTree<pcl::PointXYZ>());
   pcl::PointCloud<pcl::PointXYZ>::Ptr search_cloud =
@@ -1247,9 +1363,12 @@ void Calibration::buildVPnp(
   {
     cv::Mat residual_img =
         getConnectImg(dis_threshold, cam_edge_cloud_2d, line_edge_cloud_2d);
-    
-    cv::namedWindow("residual", cv::WINDOW_NORMAL);              
+    cv::Mat residual_rgbimg =
+        getConnectRawImg(dis_threshold, cam_edge_cloud_2d, line_edge_cloud_2d);    
+    cv::namedWindow("residual", cv::WINDOW_NORMAL);
     cv::imshow("residual", residual_img);
+    cv::namedWindow("RGBresidual", cv::WINDOW_NORMAL);
+    cv::imshow("RGBresidual", residual_rgbimg);
     cv::waitKey(100);
   }
   pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree(
