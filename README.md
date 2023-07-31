@@ -1,21 +1,5 @@
 # lidar_camera_calib
 **lidar_camera_calib** is a robust, high accuracy extrinsic calibration tool between high resolution LiDAR (e.g. Livox) and camera in targetless environment. Our algorithm can run in both indoor and outdoor scenes, and only requires edge information in the scene. If the scene is suitable, we can achieve pixel-level accuracy similar to or even beyond the target based method.
-<div align="center">
-    <img src="pics/color_cloud.png" width = 100% >
-    <font color=#a0a0a0 size=2>An example of a outdoor calibration scenario. We color the point cloud with the calibrated extrinsic and compare with actual image. A and C are locally enlarged
-views of the point cloud. B and D are parts of the camera image
-corresponding to point cloud in A and C.</font>
-</div>
-
-## Info
-New features:
-1. Support muti-scenes calibration (more accurate and robust)
-
-## Related paper
-Related paper available on arxiv:  
-[Pixel-level Extrinsic Self Calibration of High Resolution LiDAR and Camera in Targetless Environments](http://arxiv.org/abs/2103.01627)
-## Related video
-Related video: https://youtu.be/e6Vkkasc4JI
 
 ## 1. Prerequisites
 ### 1.1 **Ubuntu** and **ROS**
@@ -46,17 +30,11 @@ catkin_make
 source ~/catkin_ws/devel/setup.bash
 ```
 
-## 3. Run our example
+## 3. Run 
 ### 3.1 Single scene calibration
-Download [Our pcd and iamge file](https://drive.google.com/drive/folders/1mSvc8d9y3dElGUOgX-Qq_NY4YpRlmwUm?usp=sharing) to your local path, and then change the file path in **calib.yaml** to your data path. Then directly run
 ```
 roslaunch livox_camera_calib calib.launch
 ```
-You will get the following result. (Sensor suite: Livox Avia + Realsense-D435i)
-<div align="center">
-    <img src="pics/single_calib_case.png" width = 100% >
-    <font color=#a0a0a0 size=2>An example of single scene calibration.</font>
-</div>
 
 ### 3.2 Multi scenes calibration
 Download [Our pcd and iamge file](https://drive.google.com/drive/folders/1Q60YIwEpugcWBRHpm2MS28wfTGJh2D3e?usp=sharing) to your local path, and then change the file path in **multi_calib.yaml** to your data path. Then directly run
