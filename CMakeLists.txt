@@ -58,3 +58,8 @@ target_link_libraries(lidar_camera_multi_calib
 target_link_libraries(bag_to_pcd 
   ${catkin_LIBRARIES}  ${PCL_LIBRARIES}
 )
+
+catkin_install_python(PROGRAMS
+  pylib/extract_img.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
