@@ -2,12 +2,14 @@
 
 # Topic name in rosbag
 PointCloudTopic: "/livox/lidar"
-ImageTopic: "/camera/color/image_raw"
+ImageTopic: "/cam0/image_raw"
 
 # Lidar Data type(custom msg or pointcloud2)
 Data.custom_msg: 0
-# Initial extrinsic (usually provided by hand measurement or cad design)
 
+Undistort.img: 1  # 1 = distorted 0 = undistorted
+
+# Initial extrinsic (usually provided by hand measurement or cad design)
 ExtrinsicMat: !!opencv-matrix
   rows: 4
   cols: 4
@@ -23,7 +25,7 @@ Canny.len_threshold: 200
 
 # Params for Voxel Cutting & Plane Fitting & Edge Extraction
 Voxel.size: 1.0
-Voxel.down_sample_size: 0.02
+Voxel.down_sample_size: 0.02 
 Plane.min_points_size: 60
 Plane.normal_theta_min: 30
 Plane.normal_theta_max: 150
