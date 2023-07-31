@@ -65,7 +65,6 @@ roslaunch livox_camera_calib single_calib.launch
 ```
 
 ### 4.2 Multi scenes calibration
-Download [Our pcd and iamge file](https://drive.google.com/drive/folders/1Q60YIwEpugcWBRHpm2MS28wfTGJh2D3e?usp=sharing) to your local path, and then change the file path in **multi_calib.yaml** to your data path. Then directly run
 ```
 roslaunch livox_camera_calib multi_calib.launch
 ```
