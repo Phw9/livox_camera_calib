@@ -2,18 +2,37 @@
 
 # Topic name in rosbag
 PointCloudTopic: "/livox/lidar"
-ImageTopic: "/cam0/image_raw"
+ImageTopic: "/cam0/compressed"
+
+# Lidar Data type(custom msg or pointcloud2)
+Data.custom_msg: 0
+
+Undistort.img: 1  # 1 = distorted 0 = undistorted
 
 # Initial extrinsic (usually provided by hand measurement or cad design)
 ExtrinsicMat: !!opencv-matrix
   rows: 4
   cols: 4
   dt: d
-  data: [0.0,   -1.0,   0.0,    0.0,
-         0.0,  0.0,  -1.0,    0.0,
-         1.0,   0.0,    0.0,    0.0,
-         0.0,   0.0,    0.0,    1.0]  
-                             
+  data: [0.01397, -0.9998, 0.003442,    -0.008,
+         -0.003442, -0.003490, -0.9999, -0.013,
+         0.9999, 0.01396, -0.003490,    -0.114,
+         0.0,   0.0,    0.0,    1.0]
+
+CameraMat: !!opencv-matrix
+  rows: 3
+  cols: 3
+  dt: d
+  data: [731.259227, 0.0, 630.246023,
+        0.0, 730.071969, 353.541195,
+        0.0, 0.0, 1.0]
+
+DistCoeffs: !!opencv-matrix
+  rows: 1
+  cols: 5
+  dt: d
+  data: [-0.358663, 0.148861, 0.000282, 0.000402, 0.0] 
+
 # Params for Canny Edge Extraction
 
 Canny.gray_threshold: 10

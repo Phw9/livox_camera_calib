@@ -242,7 +242,9 @@ int main(int argc, char **argv)
   std::cout << "pcd_file path:" << pcd_file << std::endl;
   nh.param<vector<double>>("camera/camera_matrix", camera_matrix,
                            vector<double>());
+  std::cout << "cameara_matrix: " << camera_matrix.size() << std::endl;
   nh.param<vector<double>>("camera/dist_coeffs", dist_coeffs, vector<double>());
+  std::cout << "dist_coeffs: " << dist_coeffs.size() << std::endl;
   nh.param<bool>("calib/use_rough_calib", use_rough_calib, false);
   nh.param<string>("calib/calib_config_file", calib_config_file, "");
 

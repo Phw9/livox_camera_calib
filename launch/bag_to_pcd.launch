@@ -5,12 +5,12 @@
     name="bag_to_pcd"
     output="screen"
   />
-   <param name="bag_file" type="string" value="/data/livox/bag/hangpa_calib_data1.bag"/>
+   <param name="bag_file" type="string" value="/data/calib/bag/c_3.bag"/>
    <param name="lidar_topic" type="string" value="/livox/lidar"/>
-   <param name="pcd_file" type="string" value="/data/livox/multi/mypcd/2.pcd"/>
-   <param name="is_custom_msg" type="bool" value="false"/>
+   <param name="pcd_file" type="string" value="/data/calib/pcds/3.pcd"/>
+   <param name="is_custom_msg" type="bool" value="true"/>
    <!-- Filtering LiDAR horizon angle -->
-   <param name="min_angle" type="double" value="40"/>
-   <param name="max_angle" type="double" value="140"/> <!--140-->
+   <param name="min_angle" type="double" value="-60"/> <!--right-->
+   <param name="max_angle" type="double" value="55"/> <!--left-->
    <param name="blind" type="double" value="1"/>
 </launch>

@@ -188,8 +188,10 @@ Calibration::Calibration(const std::string &image_file,
                          const std::string &calib_config_file)
 {
   loadCalibConfig(calib_config_file);
-  loadCameraConfig(calib_config_file);
   image_ = cv::imread(image_file, cv::IMREAD_UNCHANGED);
+  std::cout << image_.cols << ", " << image_.rows << std::endl;
+  std::cout << "debug1" << std::endl;
+  loadCameraConfig(calib_config_file);
   if(undistort_img == 1)
   {
     cv::undistort(image_, undistort_image_, camera_matrix_, dist_coeffs_);
@@ -197,6 +199,7 @@ Calibration::Calibration(const std::string &image_file,
     // cv::imshow("undistortimage_",undistort_img);
     // cv::imshow("image_",image_);
   }
+  std::cout << "debug1" << std::endl;
   if (!image_.data)
   {
     std::string msg = "Can not load image from " + image_file;
@@ -227,6 +230,8 @@ std::cout << width_ << ", " << height_;
     ROS_ERROR_STREAM(msg.c_str());
     exit(-1);
   }
+  std::cout << "debug2" << std::endl;
+
   cv::Mat edge_image;
   // 이미지에서 에지 추출 edge_image는 흑백(에지가 255)
   edgeDetector(rgb_canny_threshold_, rgb_edge_minLen_, grey_image_, edge_image,
@@ -274,6 +279,7 @@ bool Calibration::loadCameraConfig(const std::string &camera_file)
               << std::endl;
     exit(-1);
   }
+
   width_ = cameraSettings["Camera.width"];
   height_ = cameraSettings["Camera.height"];
   cameraSettings["CameraMat"] >> camera_matrix_;
@@ -308,8 +314,10 @@ bool Calibration::loadCalibConfig(const std::string &config_file)
       init_extrinsic_.at<double>(1, 0), init_extrinsic_.at<double>(1, 1),
       init_extrinsic_.at<double>(1, 2), init_extrinsic_.at<double>(2, 0),
       init_extrinsic_.at<double>(2, 1), init_extrinsic_.at<double>(2, 2);
+  std::cout << "init_rotation_matrix_" << init_rotation_matrix_ << std::endl;
   init_translation_vector_ << init_extrinsic_.at<double>(0, 3),
       init_extrinsic_.at<double>(1, 3), init_extrinsic_.at<double>(2, 3);
+  std::cout << "init_translation_vector_: " << init_translation_vector_ << std::endl;    
   rgb_canny_threshold_ = fSettings["Canny.gray_threshold"];
   rgb_edge_minLen_ = fSettings["Canny.len_threshold"];
   voxel_size_ = fSettings["Voxel.size"];

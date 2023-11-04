@@ -16,3 +16,6 @@ with rosbag.Bag(output_bag, 'w') as outbag:
     for topic, msg, t in rosbag.Bag(input_bag).read_messages():
         if start_time <= t <= end_time:
             outbag.write(topic, msg, t)
+        
+        if t >= end_time:
+            break

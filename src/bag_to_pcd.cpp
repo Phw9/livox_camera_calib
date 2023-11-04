@@ -57,23 +57,18 @@ int main(int argc, char **argv) {
       {
 // phw 0405        
         double angle = atan2(livox_cloud_msg.points[i].y, livox_cloud_msg.points[i].x) * 180 / 3.14159; // 포인트의 회전 각도
+    
         string msg = "Angle: " + char(angle);
         ROS_INFO_STREAM(msg.c_str());
-        // if (angle >= min_angle && angle <= max_angle)
-        // {
-        //   pcl::PointXYZI p;
-        //   p.x = livox_cloud_msg.points[i].x;
-        //   p.y = livox_cloud_msg.points[i].y;
-        //   p.z = livox_cloud_msg.points[i].z;
-        //   p.intensity = livox_cloud_msg.points[i].reflectivity;
-        //   output_cloud.points.push_back(p);
-        // }
-          pcl::PointXYZI p;
-          p.x = livox_cloud_msg.points[i].x;
-          p.y = livox_cloud_msg.points[i].y;
-          p.z = livox_cloud_msg.points[i].z;
-          p.intensity = livox_cloud_msg.points[i].reflectivity;
-          output_cloud.points.push_back(p);        
+        if (angle < min_angle || angle > max_angle) continue;
+        // if (angle < min_angle ) continue;
+        pcl::PointXYZI p;
+        p.x = livox_cloud_msg.points[i].x;
+        p.y = livox_cloud_msg.points[i].y;
+        p.z = livox_cloud_msg.points[i].z;
+        p.intensity = livox_cloud_msg.points[i].reflectivity;
+        output_cloud.points.push_back(p);
+             
 // phw 0405        
         
       }

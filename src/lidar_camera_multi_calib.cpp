@@ -394,7 +394,14 @@ int main(int argc, char **argv)
   }
   outfile << 0 << "," << 0 << "," << 0 << "," << 1 << std::endl;
   cv::Mat opt_img = calibs[0].getProjectionImg(calib_params);
+  cv::Mat opt_img1 = calibs[1].getProjectionImg(calib_params);
+  cv::Mat opt_img2 = calibs[2].getProjectionImg(calib_params);
+  cv::Mat opt_img3 = calibs[3].getProjectionImg(calib_params);
+  
   cv::imshow("Optimization result", opt_img);
+  cv::imshow("Optimization result1", opt_img1);
+  cv::imshow("Optimization result2", opt_img2);
+  cv::imshow("Optimization result3", opt_img3);
   cv::waitKey(1000);
   Eigen::Matrix3d init_rotation;
   init_rotation << 0, -1.0, 0, 0, 0, -1.0, 1, 0, 0;
